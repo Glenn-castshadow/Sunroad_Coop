@@ -34,13 +34,13 @@ export default function NavBar() {
   }
 
   return (
-    <header className="bg-[#22242c] border-b border-white/10 text-white px-4 md:px-6 py-3 flex items-center gap-4 md:gap-8">
+    <header className="bg-[#22242c] border-b border-white/10 text-white px-3 sm:px-4 md:px-6 py-3 flex items-center gap-2 sm:gap-4 md:gap-8">
 
       {/* Brand */}
-      <div className="flex items-center gap-2 md:gap-3 min-w-0">
+      <div className="flex items-center gap-2 md:gap-3 min-w-0 shrink">
         <span className="text-base md:text-lg font-bold tracking-tight text-white shrink-0">Sunroad</span>
         <span className="text-slate-400 text-sm font-medium hidden sm:inline">Co-op Manager</span>
-        <span className="ml-1 text-xs bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-0.5 rounded font-semibold shrink-0">
+        <span className="hidden sm:inline-flex text-xs bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-0.5 rounded font-semibold shrink-0">
           PILOT · KIA
         </span>
       </div>
@@ -51,7 +51,7 @@ export default function NavBar() {
           <Link
             key={href}
             href={href}
-            className={`px-3 md:px-4 py-1.5 rounded text-sm font-medium transition-colors ${
+            className={`px-2 sm:px-3 md:px-4 py-1.5 rounded text-sm font-medium transition-colors ${
               path.startsWith(href)
                 ? "bg-white/10 text-white"
                 : "text-slate-400 hover:text-white hover:bg-white/5"

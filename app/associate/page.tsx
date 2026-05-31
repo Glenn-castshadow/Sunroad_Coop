@@ -1,9 +1,10 @@
 "use client";
 import { useState } from "react";
 import {
-  CLAIMS, FUND_RECORDS, ROOFTOPS, OEM_PROGRAMS,
+  FUND_RECORDS, ROOFTOPS, OEM_PROGRAMS,
   expiryUrgency, URGENCY_META, type ClaimStatus, type Claim,
 } from "@/app/data/mockData";
+import { useClaims } from "@/app/data/sessionStore";
 import StatusBadge from "@/app/components/StatusBadge";
 import BrandMark from "@/app/components/BrandMark";
 import NewReconModal from "@/app/components/NewReconModal";
@@ -50,7 +51,7 @@ export default function AssociatePage() {
   const [syncingFundId,   setSyncingFundId]    = useState<string | null>(null);
   const [syncedFundIds,   setSyncedFundIds]    = useState<Set<string>>(new Set());
   const [toastMsg,        setToastMsg]         = useState<string | null>(null);
-  const [claims,          setClaims]           = useState<Claim[]>(CLAIMS);
+  const [claims,          setClaims]           = useClaims();
 
   function showToast(msg: string) {
     setToastMsg(msg);
@@ -143,7 +144,7 @@ export default function AssociatePage() {
     <div className="flex-1 min-h-0 bg-[#18191f] text-slate-200 flex">
 
       {/* Sidebar */}
-      <aside className="hidden md:flex w-52 shrink-0 bg-[#15161b] border-r border-white/8 flex-col pt-4 pb-8 overflow-y-auto">
+      <aside className="hidden lg:flex w-52 shrink-0 bg-[#15161b] border-r border-white/8 flex-col pt-4 pb-8 overflow-y-auto">
         <div className="px-4 mb-3">
           <span className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Rooftops</span>
         </div>
@@ -227,14 +228,14 @@ export default function AssociatePage() {
                 const isSyncing  = syncingFundId === fund.id;
                 const justSynced = syncedFundIds.has(fund.id);
                 return (
-                  <div key={fund.id} className="bg-[#22242c] border border-white/8 rounded-tl-xl rounded-br-xl rounded-tr-none rounded-bl-none flex flex-col md:flex-row overflow-hidden">
-                    <div className="hidden md:flex w-20 shrink-0 bg-black/20 items-center justify-center border-r border-white/8">
+                  <div key={fund.id} className="bg-[#22242c] border border-white/8 rounded-tl-xl rounded-br-xl rounded-tr-none rounded-bl-none flex flex-col lg:flex-row overflow-hidden">
+                    <div className="hidden lg:flex w-20 shrink-0 bg-black/20 items-center justify-center border-r border-white/8">
                       <BrandMark brand={rt.brand} size={38} />
                     </div>
                     <div className="flex-1 min-w-0 px-4 md:px-5 py-4">
                       <div className="flex items-start justify-between gap-4">
                         <div className="min-w-0">
-                          <div className="flex items-center gap-1.5 mb-1.5 md:hidden">
+                          <div className="flex items-center gap-1.5 mb-1.5 lg:hidden">
                             <BrandMark brand={rt.brand} size={18} />
                             <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">{rt.brand}</span>
                           </div>
@@ -244,8 +245,8 @@ export default function AssociatePage() {
                             Submit by {fund.expiryDate} &nbsp;·&nbsp; {fund.daysUntilExpiry}d remaining
                           </div>
                           <div className="mt-3 h-1.5 w-full md:w-64 bg-white/5 rounded-full overflow-hidden flex">
-                            <div className="bg-emerald-500 h-full" style={{ width: `${claimedPct}%` }} />
-                            <div className="bg-amber-400 h-full" style={{ width: `${pendingPct}%` }} />
+                            <div className="bg-blue-500 h-full" style={{ width: `${claimedPct}%` }} />
+                            <div className="bg-white/20 h-full" style={{ width: `${pendingPct}%` }} />
                           </div>
                         </div>
                         <div className="text-right shrink-0">
@@ -256,29 +257,29 @@ export default function AssociatePage() {
                     </div>
 
                     {/* Stats + sync */}
-                    <div className="border-t md:border-t-0 md:border-l border-white/8 px-4 md:px-5 py-3 md:py-4 flex items-center justify-between md:flex-col md:justify-between md:w-56">
-                      <div className="flex gap-4 md:gap-5">
+                    <div className="border-t lg:border-t-0 lg:border-l border-white/8 px-4 md:px-5 py-3 lg:py-4 flex flex-col sm:flex-row lg:flex-col gap-3 sm:items-center sm:justify-between lg:items-stretch lg:justify-between lg:w-64">
+                      <div className="grid grid-cols-3 gap-3 sm:gap-5 lg:flex lg:gap-5">
                         <div>
-                          <div className="text-sm md:text-base font-bold text-slate-200 mb-0.5 md:mb-1">{fmt(fund.claimedYTD)}</div>
-                          <div className="flex items-center gap-1 md:gap-1.5 text-xs text-slate-500">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />Claimed
+                          <div className="text-sm md:text-base font-bold text-slate-200 mb-0.5 lg:mb-1">{fmt(fund.claimedYTD)}</div>
+                          <div className="flex items-center gap-1 lg:gap-1.5 text-xs text-slate-500">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block" />Claimed
                           </div>
                         </div>
                         <div>
-                          <div className="text-sm md:text-base font-bold text-slate-200 mb-0.5 md:mb-1">{fmt(fund.pendingClaims)}</div>
-                          <div className="flex items-center gap-1 md:gap-1.5 text-xs text-slate-500">
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />Pending
+                          <div className="text-sm md:text-base font-bold text-slate-200 mb-0.5 lg:mb-1">{fmt(fund.pendingClaims)}</div>
+                          <div className="flex items-center gap-1 lg:gap-1.5 text-xs text-slate-500">
+                            <span className="w-1.5 h-1.5 rounded-full bg-white/25 inline-block" />At OEM
                           </div>
                         </div>
                         <div>
-                          <div className="text-sm md:text-base font-bold text-slate-200 mb-0.5 md:mb-1">{fmt(fund.accruedBalance)}</div>
-                          <div className="flex items-center gap-1 md:gap-1.5 text-xs text-slate-500">
-                            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 inline-block" />Accrued
+                          <div className="text-sm md:text-base font-bold text-slate-200 mb-0.5 lg:mb-1">{fmt(fund.accruedBalance)}</div>
+                          <div className="flex items-center gap-1 lg:gap-1.5 text-xs text-slate-500">
+                            <span className="w-1.5 h-1.5 rounded-full bg-white/15 inline-block" />Accrued
                           </div>
                         </div>
                       </div>
                       {/* Sync row */}
-                      <div className="flex items-center gap-2 text-[10px] text-slate-600 md:mt-3">
+                      <div className="flex items-center gap-2 text-[10px] text-slate-600 lg:mt-3">
                         <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <rect x="3" y="4" width="18" height="18" rx="2" strokeWidth="2"/>
                           <path d="M16 2v4M8 2v4M3 10h18" strokeWidth="2"/>
@@ -309,14 +310,14 @@ export default function AssociatePage() {
                 const claimedPct = Math.round((fund.claimedYTD / fund.accruedBalance) * 100);
                 const pendingPct = Math.min(100 - claimedPct, Math.round((fund.pendingClaims / fund.accruedBalance) * 100));
                 return (
-                  <div key={fund.id} className="bg-[#22242c] border border-white/5 rounded-tl-xl rounded-br-xl rounded-tr-none rounded-bl-none flex flex-col md:flex-row overflow-hidden opacity-55">
-                    <div className="hidden md:flex w-20 shrink-0 bg-black/30 items-center justify-center border-r border-white/5">
+                  <div key={fund.id} className="bg-[#22242c] border border-white/5 rounded-tl-xl rounded-br-xl rounded-tr-none rounded-bl-none flex flex-col lg:flex-row overflow-hidden opacity-55">
+                    <div className="hidden lg:flex w-20 shrink-0 bg-black/30 items-center justify-center border-r border-white/5">
                       <span className="text-xs font-bold text-slate-600 uppercase tracking-widest">{rt.brand}</span>
                     </div>
                     <div className="flex-1 min-w-0 px-4 md:px-5 py-4">
                       <div className="flex items-start justify-between gap-4">
                         <div className="min-w-0">
-                          <div className="text-xs font-bold text-slate-600 uppercase tracking-widest mb-1 md:hidden">{rt.brand}</div>
+                          <div className="text-xs font-bold text-slate-600 uppercase tracking-widest mb-1 lg:hidden">{rt.brand}</div>
                           <div className="flex items-center gap-2">
                             <div className="text-base font-bold text-slate-400">{rt.name}</div>
                             <span className="text-xs bg-slate-500/15 text-slate-500 border border-slate-500/25 px-1.5 py-0.5 rounded font-medium">Closed</span>
@@ -333,22 +334,22 @@ export default function AssociatePage() {
                         </div>
                       </div>
                     </div>
-                    <div className="border-t md:border-t-0 md:border-l border-white/5 px-4 md:px-5 py-3 md:py-4 flex items-center justify-between md:flex-col md:justify-between md:w-56">
-                      <div className="flex gap-4 md:gap-5">
+                    <div className="border-t lg:border-t-0 lg:border-l border-white/5 px-4 md:px-5 py-3 lg:py-4 flex flex-col sm:flex-row lg:flex-col gap-3 sm:items-center sm:justify-between lg:items-stretch lg:justify-between lg:w-64">
+                      <div className="grid grid-cols-3 gap-3 sm:gap-5 lg:flex lg:gap-5">
                         <div>
                           <div className="text-sm md:text-base font-bold text-slate-500 mb-0.5">{fmt(fund.claimedYTD)}</div>
-                          <div className="flex items-center gap-1 text-xs text-slate-600"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500/50 inline-block" />Claimed</div>
+                          <div className="flex items-center gap-1 text-xs text-slate-600"><span className="w-1.5 h-1.5 rounded-full bg-blue-500/40 inline-block" />Claimed</div>
                         </div>
                         <div>
                           <div className="text-sm md:text-base font-bold text-slate-500 mb-0.5">{fmt(fund.pendingClaims)}</div>
-                          <div className="flex items-center gap-1 text-xs text-slate-600"><span className="w-1.5 h-1.5 rounded-full bg-amber-400/50 inline-block" />Pending</div>
+                          <div className="flex items-center gap-1 text-xs text-slate-600"><span className="w-1.5 h-1.5 rounded-full bg-white/20 inline-block" />At OEM</div>
                         </div>
                         <div>
                           <div className="text-sm md:text-base font-bold text-slate-500 mb-0.5">{fmt(fund.accruedBalance)}</div>
-                          <div className="flex items-center gap-1 text-xs text-slate-600"><span className="w-1.5 h-1.5 rounded-full bg-blue-400/50 inline-block" />Accrued</div>
+                          <div className="flex items-center gap-1 text-xs text-slate-600"><span className="w-1.5 h-1.5 rounded-full bg-white/12 inline-block" />Accrued</div>
                         </div>
                       </div>
-                      <div className="text-[10px] text-slate-700 md:mt-3">Prior Periods tab</div>
+                      <div className="text-[10px] text-slate-700 lg:mt-3">Prior Periods tab</div>
                     </div>
                   </div>
                 );
@@ -374,7 +375,7 @@ export default function AssociatePage() {
             </div>
 
             {/* Tab strip */}
-            <div className="flex gap-0 border-b border-white/8 mb-4 overflow-x-auto">
+            <div className="flex gap-0 border-b border-white/8 mb-4 overflow-x-auto overflow-y-hidden">
               {STATUS_TABS.map(({ key, label }) => (
                 <button
                   key={key}
@@ -516,22 +517,22 @@ export default function AssociatePage() {
                         )}
                       </div>
 
-                      <div className="text-right shrink-0">
-                        <div className="text-base font-bold text-white">{fmt(claim.eligibleAmount)}</div>
-                        <div className="text-xs text-slate-600 mt-0.5 hidden sm:block">{claim.id}</div>
-                      </div>
-
-                      <div className="flex flex-col gap-1.5 shrink-0">
+                      {/* Right column: amount + action button stacked */}
+                      <div className="shrink-0 flex flex-col items-end gap-2 min-w-[80px]">
+                        <div className="text-right">
+                          <div className="text-base font-bold text-white">{fmt(claim.eligibleAmount)}</div>
+                          <div className="text-xs text-slate-600 mt-0.5 hidden sm:block">{claim.id}</div>
+                        </div>
                         {claim.status === "unsubmitted" && (
                           <button
                             onClick={() => setSubmitClaim(claim)}
-                            className="text-xs px-2 md:px-3 py-1.5 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-tl-lg rounded-br-lg rounded-tr-none rounded-bl-none font-medium hover:bg-blue-500/30 transition-colors whitespace-nowrap"
+                            className="text-xs px-2.5 py-1.5 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-tl-lg rounded-br-lg rounded-tr-none rounded-bl-none font-medium hover:bg-blue-500/30 transition-colors whitespace-nowrap"
                           >
                             Submit to DAS
                           </button>
                         )}
                         {(claim.status === "pending" || claim.status === "approved") && (
-                          <button className="text-xs px-2 md:px-3 py-1.5 bg-white/5 text-slate-400 border border-white/10 rounded-tl-lg rounded-br-lg rounded-tr-none rounded-bl-none font-medium hover:bg-white/10 transition-colors whitespace-nowrap">
+                          <button className="text-xs px-2.5 py-1.5 bg-white/5 text-slate-400 border border-white/10 rounded-tl-lg rounded-br-lg rounded-tr-none rounded-bl-none font-medium hover:bg-white/10 transition-colors whitespace-nowrap">
                             View in DAS
                           </button>
                         )}
@@ -601,7 +602,7 @@ export default function AssociatePage() {
         />
       )}
       {showCalendar && (
-        <DeadlineCalendar onClose={() => setShowCalendar(false)} />
+        <DeadlineCalendar fundRecords={FUND_RECORDS} onClose={() => setShowCalendar(false)} />
       )}
 
       {/* Toast */}

@@ -509,17 +509,21 @@ export const CLAIMS: Claim[] = [
 ];
 
 // ─── STATUS META ──────────────────────────────────────────────────────────────
+// One accent color (blue) for the active/in-progress state.
+// Green only for genuine success (approved). Everything else is neutral.
 export const STATUS_META: Record<ClaimStatus, { label: string; color: string; bg: string }> = {
-  unsubmitted: { label: "Unsubmitted",  color: "text-amber-300",   bg: "bg-amber-500/10 border-amber-500/30" },
-  pending:     { label: "Pending",      color: "text-blue-300",    bg: "bg-blue-500/10 border-blue-500/30" },
-  approved:    { label: "Approved",     color: "text-emerald-300", bg: "bg-emerald-500/10 border-emerald-500/30" },
-  paid:        { label: "Paid",         color: "text-slate-400",   bg: "bg-slate-500/10 border-slate-500/30" },
-  expired:     { label: "Expired",      color: "text-rose-400",    bg: "bg-rose-500/10 border-rose-500/30" },
+  unsubmitted: { label: "Ready",    color: "text-slate-300",   bg: "bg-white/5 border-white/10" },
+  pending:     { label: "At OEM",   color: "text-blue-400",    bg: "bg-blue-500/10 border-blue-500/20" },
+  approved:    { label: "Approved", color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20" },
+  paid:        { label: "Paid",     color: "text-slate-500",   bg: "bg-white/[0.03] border-white/8" },
+  expired:     { label: "Expired",  color: "text-red-400",     bg: "bg-red-500/8 border-red-500/15" },
 };
 
 // ─── URGENCY META ─────────────────────────────────────────────────────────────
+// "Healthy" should be the quietest thing on screen — nothing to act on.
+// Amber for ≤30d (act soon). Neutral for ≤60d (awareness only).
 export const URGENCY_META = {
-  critical: { label: "Expiring ≤30d",  color: "text-red-400",    bg: "bg-red-500/10 border-red-500/30" },
-  warning:  { label: "Expiring ≤60d",  color: "text-amber-400",  bg: "bg-amber-500/10 border-amber-500/30" },
-  healthy:  { label: "Healthy",         color: "text-emerald-400",bg: "bg-emerald-500/10 border-emerald-500/30" },
+  critical: { label: "Submit within 30 days", color: "text-amber-400",  bg: "bg-amber-500/8 border-amber-500/20" },
+  warning:  { label: "Submit within 60 days", color: "text-slate-400",  bg: "bg-white/5 border-white/8" },
+  healthy:  { label: "On track",              color: "text-slate-500",  bg: "bg-white/[0.025] border-white/6" },
 };

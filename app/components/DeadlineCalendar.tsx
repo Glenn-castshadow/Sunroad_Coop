@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { FUND_RECORDS, ROOFTOPS, OEM_PROGRAMS } from "@/app/data/mockData";
+import { FUND_RECORDS, ROOFTOPS, OEM_PROGRAMS, type FundRecord } from "@/app/data/mockData";
 import BrandMark from "./BrandMark";
 
 function fmt(n: number) {
@@ -14,14 +14,12 @@ const MONTH_NAMES = ["January","February","March","April","May","June","July","A
 const DAY_ABBR    = ["Su","Mo","Tu","We","Th","Fr","Sa"];
 const TODAY_STR   = "2026-05-31";
 
-// Pre-build deadline map once (module scope — no renders)
-const DEADLINE_MAP: Record<string, typeof FUND_RECORDS> = {};
-FUND_RECORDS.forEach((f) => {
-  if (!DEADLINE_MAP[f.expiryDate]) DEADLINE_MAP[f.expiryDate] = [];
-  DEADLINE_MAP[f.expiryDate].push(f);
-});
+interface Props {
+  fundRecords?: FundRecord[];
+  onClose: () => void;
+}
 
-export default function DeadlineCalendar({ onClose }: { onClose: () => void }) {
+export default function DeadlineCalendar({ fundRecords = FUND_RECORDS, onClose }: Props) {
   // Default to June 2026 — most deadlines land here
   const [year,  setYear]  = useState(2026);
   const [month, setMonth] = useState(5);
@@ -43,10 +41,15 @@ export default function DeadlineCalendar({ onClose }: { onClose: () => void }) {
   const cells       = [...Array(firstDow).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
   while (cells.length % 7 !== 0) cells.push(null);
 
-  const selectedFunds = selected ? (DEADLINE_MAP[selected] ?? []) : [];
+  const deadlineMap = fundRecords.reduce<Record<string, FundRecord[]>>((map, fund) => {
+    map[fund.expiryDate] = [...(map[fund.expiryDate] ?? []), fund];
+    return map;
+  }, {});
+
+  const selectedFunds = selected ? (deadlineMap[selected] ?? []) : [];
 
   // Total upcoming deadlines this month
-  const monthDeadlines = Object.entries(DEADLINE_MAP)
+  const monthDeadlines = Object.entries(deadlineMap)
     .filter(([d]) => d.startsWith(`${year}-${String(month + 1).padStart(2, "0")}`))
     .flatMap(([, funds]) => funds);
 
@@ -107,7 +110,7 @@ export default function DeadlineCalendar({ onClose }: { onClose: () => void }) {
               {cells.map((day, idx) => {
                 if (!day) return <div key={`e-${idx}`} />;
                 const dateStr     = isoDate(year, month, day);
-                const funds       = DEADLINE_MAP[dateStr] ?? [];
+                const funds       = deadlineMap[dateStr] ?? [];
                 const isToday     = dateStr === TODAY_STR;
                 const isPast      = dateStr < TODAY_STR;
                 const isSelected  = dateStr === selected;
@@ -145,10 +148,10 @@ export default function DeadlineCalendar({ onClose }: { onClose: () => void }) {
                       <div className="flex gap-0.5 mt-0.5 flex-wrap justify-center px-1">
                         {funds.slice(0, 4).map((f, i) => (
                           <div key={i} className={`w-1.5 h-1.5 rounded-full ${
-                            f.daysUntilExpiry <= 0  ? "bg-slate-500" :
-                            f.daysUntilExpiry <= 30  ? "bg-red-400"    :
-                            f.daysUntilExpiry <= 60  ? "bg-amber-400"  :
-                                                       "bg-emerald-400"
+                            f.daysUntilExpiry <= 0  ? "bg-white/15"  :
+                            f.daysUntilExpiry <= 30  ? "bg-amber-400" :
+                            f.daysUntilExpiry <= 60  ? "bg-white/35"  :
+                                                       "bg-white/20"
                           }`} />
                         ))}
                         {funds.length > 4 && (
@@ -160,10 +163,10 @@ export default function DeadlineCalendar({ onClose }: { onClose: () => void }) {
                     {/* Urgency ring on deadline days */}
                     {hasDeadline && !isSelected && (
                       <div className={`absolute inset-0 rounded pointer-events-none border ${
-                        maxUrgency === "critical" ? "border-red-500/30"    :
-                        maxUrgency === "warning"  ? "border-amber-500/20"  :
-                        maxUrgency === "past"     ? "border-white/5"       :
-                                                    "border-emerald-500/15"
+                        maxUrgency === "critical" ? "border-amber-500/30" :
+                        maxUrgency === "warning"  ? "border-white/12"     :
+                        maxUrgency === "past"     ? "border-white/5"      :
+                                                    "border-white/8"
                       }`} />
                     )}
                   </button>
@@ -173,10 +176,10 @@ export default function DeadlineCalendar({ onClose }: { onClose: () => void }) {
 
             {/* Legend */}
             <div className="flex gap-4 mt-4 pt-3 border-t border-white/8 text-[10px] text-slate-600">
-              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-400 inline-block"/>≤30 days</span>
-              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block"/>≤60 days</span>
-              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-400 inline-block"/>Healthy</span>
-              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-slate-500 inline-block"/>Closed</span>
+              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block"/>≤30 days</span>
+              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-white/35 inline-block"/>≤60 days</span>
+              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-white/20 inline-block"/>On track</span>
+              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-white/12 inline-block"/>Closed</span>
             </div>
           </div>
 
@@ -201,8 +204,8 @@ export default function DeadlineCalendar({ onClose }: { onClose: () => void }) {
                                       f.daysUntilExpiry <= 60  ? "warning"  : "healthy";
                       return (
                         <div key={f.id} className={`rounded-tl-lg rounded-br-lg rounded-tr-none rounded-bl-none border p-3 ${
-                          urgency === "critical" ? "border-red-500/30 bg-red-500/5"    :
-                          urgency === "warning"  ? "border-amber-500/25 bg-amber-500/5" :
+                          urgency === "critical" ? "border-amber-500/30 bg-amber-500/5" :
+                          urgency === "warning"  ? "border-white/8 bg-white/[0.02]"    :
                           urgency === "past"     ? "border-white/5 bg-white/[0.015] opacity-60" :
                                                    "border-white/8 bg-white/[0.02]"
                         }`}>
@@ -215,9 +218,9 @@ export default function DeadlineCalendar({ onClose }: { onClose: () => void }) {
                           </div>
                           <div className="flex items-center justify-between text-[10px]">
                             <span className={`font-semibold ${
-                              urgency === "past" ? "text-slate-500" :
-                              urgency === "critical" ? "text-red-400" :
-                              urgency === "warning"  ? "text-amber-400" : "text-emerald-400"
+                              urgency === "past"     ? "text-slate-500" :
+                              urgency === "critical" ? "text-amber-400" :
+                              urgency === "warning"  ? "text-slate-400" : "text-slate-500"
                             }`}>
                               {f.daysUntilExpiry > 0 ? `${f.daysUntilExpiry}d remaining` : "Closed"}
                             </span>
@@ -226,9 +229,9 @@ export default function DeadlineCalendar({ onClose }: { onClose: () => void }) {
                           <div className="text-[9px] text-slate-600 text-right mt-0.5">available</div>
                           {/* Mini utilization bar */}
                           <div className="mt-2 h-1 bg-white/5 rounded-full overflow-hidden flex">
-                            <div className="bg-emerald-500 h-full"
+                            <div className="bg-blue-500 h-full"
                               style={{ width: `${Math.round((f.claimedYTD / f.accruedBalance) * 100)}%` }}/>
-                            <div className="bg-amber-400 h-full"
+                            <div className="bg-white/20 h-full"
                               style={{ width: `${Math.min(100 - Math.round((f.claimedYTD / f.accruedBalance) * 100), Math.round((f.pendingClaims / f.accruedBalance) * 100))}%` }}/>
                           </div>
                         </div>

@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
-import { CLAIMS, FUND_RECORDS, ROOFTOPS, OEM_PROGRAMS, expiryUrgency, URGENCY_META, type FundRecord } from "@/app/data/mockData";
+import { FUND_RECORDS, ROOFTOPS, OEM_PROGRAMS, expiryUrgency, URGENCY_META, type FundRecord } from "@/app/data/mockData";
+import { useClaims } from "@/app/data/sessionStore";
 import StatusBadge from "@/app/components/StatusBadge";
 import BrandMark from "@/app/components/BrandMark";
 import EditAgreementModal from "@/app/components/EditAgreementModal";
@@ -40,6 +41,7 @@ export default function DirectorPage() {
   const [showCalendar,      setShowCalendar]      = useState(false);
   const [syncingFundId,     setSyncingFundId]     = useState<string | null>(null);
   const [syncedFundIds,     setSyncedFundIds]     = useState<Set<string>>(new Set());
+  const [claims] = useClaims();
 
   function handleAgreementSave(fundId: string, updates: Partial<FundRecord>) {
     setFundRecords((prev) =>
@@ -107,15 +109,15 @@ export default function DirectorPage() {
 
   const rooftopRollup = visibleRooftops.map((rt) => {
     const funds  = fundRecords.filter((f) => f.rooftopId === rt.id);
-    const claims = CLAIMS.filter((c) => c.rooftopId === rt.id);
+    const rooftopClaims = claims.filter((c) => c.rooftopId === rt.id);
     const accrued   = funds.reduce((s, f) => s + f.accruedBalance, 0);
     const claimed   = funds.reduce((s, f) => s + f.claimedYTD, 0);
     const available = funds.reduce((s, f) => s + f.availableBalance, 0);
     const soonestDeadline = funds
       .filter((f) => f.daysUntilExpiry > 0)
       .sort((a, b) => a.daysUntilExpiry - b.daysUntilExpiry)[0];
-    const readyToSubmit   = claims.filter((c) => c.status === "unsubmitted").length;
-    const pastDeadlineCount = claims.filter((c) => c.status === "expired").length;
+    const readyToSubmit   = rooftopClaims.filter((c) => c.status === "unsubmitted").length;
+    const pastDeadlineCount = rooftopClaims.filter((c) => c.status === "expired").length;
     return { rt, accrued, claimed, available, soonestDeadline, readyToSubmit, pastDeadlineCount };
   });
 
@@ -127,7 +129,7 @@ export default function DirectorPage() {
     <div className="flex-1 min-h-0 bg-[#18191f] text-slate-200 flex">
 
       {/* Rooftop sidebar — desktop only */}
-      <aside className="hidden md:flex w-52 shrink-0 bg-[#15161b] border-r border-white/8 flex-col pt-4 pb-8 overflow-y-auto">
+      <aside className="hidden lg:flex w-52 shrink-0 bg-[#15161b] border-r border-white/8 flex-col pt-4 pb-8 overflow-y-auto">
         <div className="px-4 mb-3">
           <span className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Rooftops</span>
         </div>
@@ -178,7 +180,7 @@ export default function DirectorPage() {
 
         {/* Header */}
         <div className="bg-[#22242c] border-b border-white/8 px-4 md:px-6 py-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-lg md:text-xl font-bold text-white">Fund Overview</h1>
@@ -200,7 +202,7 @@ export default function DirectorPage() {
                 Marketing Director · {selectedName} · {TODAY.getFullYear()}
               </p>
               {/* Mobile rooftop select */}
-              <div className="mt-2 md:hidden">
+              <div className="mt-2 lg:hidden">
                 <select
                   value={selectedRooftopId ?? ""}
                   onChange={(e) => setSelectedRooftopId(e.target.value || null)}
@@ -214,9 +216,9 @@ export default function DirectorPage() {
               </div>
             </div>
             {/* KPI chips */}
-            <div className="flex flex-wrap gap-2 sm:gap-3 sm:shrink-0">
+            <div className="grid w-full grid-cols-2 gap-2 sm:gap-3 lg:flex lg:w-auto lg:flex-wrap lg:shrink-0">
               {/* Accrued — wallet */}
-              <div className="bg-white/5 border border-white/10 rounded-tl-xl rounded-br-xl rounded-tr-none rounded-bl-none px-3 md:px-4 py-2.5 flex items-center gap-3 min-w-[110px]">
+              <div className="bg-white/5 border border-white/10 rounded-tl-xl rounded-br-xl rounded-tr-none rounded-bl-none px-3 md:px-4 py-2.5 flex items-center gap-3 min-w-0 w-full lg:w-auto lg:min-w-[150px]">
                 <div className="w-8 h-8 rounded-lg bg-white/8 flex items-center justify-center shrink-0">
                   <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
@@ -229,7 +231,7 @@ export default function DirectorPage() {
                 </div>
               </div>
               {/* Claimed — check circle */}
-              <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-tl-xl rounded-br-xl rounded-tr-none rounded-bl-none px-3 md:px-4 py-2.5 flex items-center gap-3 min-w-[110px]">
+              <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-tl-xl rounded-br-xl rounded-tr-none rounded-bl-none px-3 md:px-4 py-2.5 flex items-center gap-3 min-w-0 w-full lg:w-auto lg:min-w-[150px]">
                 <div className="w-8 h-8 rounded-lg bg-emerald-500/15 flex items-center justify-center shrink-0">
                   <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -242,7 +244,7 @@ export default function DirectorPage() {
                 </div>
               </div>
               {/* At OEM — hourglass/clock */}
-              <div className="bg-amber-500/10 border border-amber-500/30 rounded-tl-xl rounded-br-xl rounded-tr-none rounded-bl-none px-3 md:px-4 py-2.5 flex items-center gap-3 min-w-[110px]">
+              <div className="bg-amber-500/10 border border-amber-500/30 rounded-tl-xl rounded-br-xl rounded-tr-none rounded-bl-none px-3 md:px-4 py-2.5 flex items-center gap-3 min-w-0 w-full lg:w-auto lg:min-w-[150px]">
                 <div className="w-8 h-8 rounded-lg bg-amber-500/15 flex items-center justify-center shrink-0">
                   <svg className="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
@@ -255,7 +257,7 @@ export default function DirectorPage() {
                 </div>
               </div>
               {/* Available — coins/dollar */}
-              <div className="bg-blue-500/10 border border-blue-500/30 rounded-tl-xl rounded-br-xl rounded-tr-none rounded-bl-none px-3 md:px-4 py-2.5 flex items-center gap-3 min-w-[110px]">
+              <div className="bg-blue-500/10 border border-blue-500/30 rounded-tl-xl rounded-br-xl rounded-tr-none rounded-bl-none px-3 md:px-4 py-2.5 flex items-center gap-3 min-w-0 w-full lg:w-auto lg:min-w-[150px]">
                 <div className="w-8 h-8 rounded-lg bg-blue-500/15 flex items-center justify-center shrink-0">
                   <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
@@ -283,7 +285,7 @@ export default function DirectorPage() {
                 const meta       = URGENCY_META[urgency];
                 const claimedPct = Math.round((fund.claimedYTD / fund.accruedBalance) * 100);
                 const pendingPct = Math.min(100 - claimedPct, Math.round((fund.pendingClaims / fund.accruedBalance) * 100));
-                const unsubCount = CLAIMS.filter((c) => c.rooftopId === fund.rooftopId && c.status === "unsubmitted").length;
+                const unsubCount = claims.filter((c) => c.rooftopId === fund.rooftopId && c.status === "unsubmitted").length;
                 const isExpanded = expandedFunds.has(fund.id);
                 const borderCls  = urgency === "critical" ? "border-amber-500/40" : isExpanded ? "border-white/15" : "border-white/8";
                 return (
@@ -323,6 +325,21 @@ export default function DirectorPage() {
                               </span>
                             )}
                           </div>
+                          <div className="mt-2 grid grid-cols-3 gap-2 md:hidden">
+                            {[
+                              { label: "Claimed", color: "bg-blue-500", val: fund.claimedYTD },
+                              { label: "At OEM", color: "bg-white/25", val: fund.pendingClaims },
+                              { label: "Accrued", color: "bg-white/15", val: fund.accruedBalance },
+                            ].map(({ label, color, val }) => (
+                              <div key={label} className="min-w-0">
+                                <div className="text-[11px] font-bold text-slate-300 leading-tight">{fmt(val)}</div>
+                                <div className="flex items-center gap-1 text-[9px] text-slate-500 leading-tight">
+                                  <span className={`w-1.5 h-1.5 rounded-full ${color} inline-block shrink-0`} />
+                                  <span className="truncate">{label}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         </div>
 
                         {/* 3 stats — desktop only in collapsed row */}
@@ -330,19 +347,19 @@ export default function DirectorPage() {
                           <div>
                             <div className="text-xs font-bold text-slate-300 mb-0.5">{fmt(fund.claimedYTD)}</div>
                             <div className="flex items-center gap-1 text-[10px] text-slate-500 whitespace-nowrap">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block shrink-0"/>Claimed
+                              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block shrink-0"/>Claimed
                             </div>
                           </div>
                           <div>
                             <div className="text-xs font-bold text-slate-300 mb-0.5">{fmt(fund.pendingClaims)}</div>
                             <div className="flex items-center gap-1 text-[10px] text-slate-500 whitespace-nowrap">
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block shrink-0"/>At OEM
+                              <span className="w-1.5 h-1.5 rounded-full bg-white/25 inline-block shrink-0"/>At OEM
                             </div>
                           </div>
                           <div>
                             <div className="text-xs font-bold text-slate-300 mb-0.5">{fmt(fund.accruedBalance)}</div>
                             <div className="flex items-center gap-1 text-[10px] text-slate-500 whitespace-nowrap">
-                              <span className="w-1.5 h-1.5 rounded-full bg-blue-400 inline-block shrink-0"/>Accrued
+                              <span className="w-1.5 h-1.5 rounded-full bg-white/15 inline-block shrink-0"/>Accrued
                             </div>
                           </div>
                         </div>
@@ -366,7 +383,7 @@ export default function DirectorPage() {
                     {/* ── Expanded detail panel ── */}
                     {isExpanded && (() => {
                       const program      = OEM_PROGRAMS.find((p) => p.id === fund.programId)!;
-                      const fundClaims   = CLAIMS.filter((c) => c.fundRecordId === fund.id)
+                      const fundClaims   = claims.filter((c) => c.fundRecordId === fund.id)
                                                   .sort((a, b) => {
                                                     const order = { unsubmitted: 0, pending: 1, approved: 2, paid: 3, expired: 4 };
                                                     return (order[a.status] ?? 9) - (order[b.status] ?? 9);
@@ -374,13 +391,13 @@ export default function DirectorPage() {
                       const utilizedPct  = Math.round(((fund.claimedYTD + fund.pendingClaims) / fund.accruedBalance) * 100);
                       const availPct     = Math.max(0, 100 - claimedPct - pendingPct);
                       const utilLabel    = utilizedPct >= 75 ? "Well utilized" : utilizedPct >= 45 ? "On pace" : "Room to grow";
-                      const utilColor    = utilizedPct >= 75 ? "text-emerald-400" : utilizedPct >= 45 ? "text-blue-400" : "text-slate-400";
+                      const utilColor    = utilizedPct >= 75 ? "text-blue-400" : utilizedPct >= 45 ? "text-slate-300" : "text-slate-400";
                       const statusColors: Record<string, string> = {
-                        unsubmitted: "text-blue-400 bg-blue-500/10 border-blue-500/30",
-                        pending:     "text-amber-400 bg-amber-500/10 border-amber-500/30",
-                        approved:    "text-emerald-400 bg-emerald-500/10 border-emerald-500/30",
-                        paid:        "text-slate-300 bg-white/5 border-white/10",
-                        expired:     "text-slate-500 bg-white/5 border-white/10",
+                        unsubmitted: "text-slate-300 bg-white/5 border-white/10",
+                        pending:     "text-blue-400 bg-blue-500/10 border-blue-500/20",
+                        approved:    "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
+                        paid:        "text-slate-500 bg-white/[0.03] border-white/8",
+                        expired:     "text-slate-600 bg-white/[0.02] border-white/5",
                       };
                       const statusLabels: Record<string, string> = {
                         unsubmitted: "Ready to submit",
@@ -408,9 +425,9 @@ export default function DirectorPage() {
                           {/* Stats — mobile only */}
                           <div className="flex gap-5 md:hidden">
                             {[
-                              { label: "Claimed",  color: "bg-emerald-500", val: fund.claimedYTD },
-                              { label: "At OEM",   color: "bg-amber-400",   val: fund.pendingClaims },
-                              { label: "Accrued",  color: "bg-blue-400",    val: fund.accruedBalance },
+                              { label: "Claimed",  color: "bg-blue-500",  val: fund.claimedYTD },
+                              { label: "At OEM",   color: "bg-white/25",  val: fund.pendingClaims },
+                              { label: "Accrued",  color: "bg-white/15",  val: fund.accruedBalance },
                             ].map(({ label, color, val }) => (
                               <div key={label}>
                                 <div className="flex items-center gap-1 text-[10px] text-slate-500 mb-0.5">
@@ -428,12 +445,12 @@ export default function DirectorPage() {
                               <span className={`text-xs font-semibold ${utilColor}`}>{utilizedPct}% &nbsp;·&nbsp; {utilLabel}</span>
                             </div>
                             <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden flex">
-                              <div className="bg-emerald-500 h-full" style={{ width: `${claimedPct}%` }}/>
-                              <div className="bg-amber-400 h-full" style={{ width: `${pendingPct}%` }}/>
+                              <div className="bg-blue-500 h-full" style={{ width: `${claimedPct}%` }}/>
+                              <div className="bg-white/20 h-full" style={{ width: `${pendingPct}%` }}/>
                             </div>
                             <div className="flex gap-4 mt-1.5 text-[10px] text-slate-600">
-                              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"/>Claimed {claimedPct}%</span>
-                              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block"/>At OEM {pendingPct}%</span>
+                              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500 inline-block"/>Claimed {claimedPct}%</span>
+                              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-white/25 inline-block"/>At OEM {pendingPct}%</span>
                               <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-white/15 inline-block"/>Available {availPct}%</span>
                             </div>
                           </div>
@@ -716,7 +733,7 @@ export default function DirectorPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {CLAIMS
+                  {claims
                     .filter((c) => visibleRooftops.some((r) => r.id === c.rooftopId))
                     .map((claim) => {
                       const rt = ROOFTOPS.find((r) => r.id === claim.rooftopId)!;
@@ -739,7 +756,7 @@ export default function DirectorPage() {
       </div>
 
       {/* Deadline Calendar */}
-      {showCalendar && <DeadlineCalendar onClose={() => setShowCalendar(false)} />}
+      {showCalendar && <DeadlineCalendar fundRecords={fundRecords} onClose={() => setShowCalendar(false)} />}
 
       {/* Edit Agreement Modal */}
       {editFund && (() => {
