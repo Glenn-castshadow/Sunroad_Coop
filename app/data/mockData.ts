@@ -508,6 +508,21 @@ export const CLAIMS: Claim[] = [
   },
 ];
 
+// ─── SHARED UTILITIES ────────────────────────────────────────────────────────
+// Single source for the mock date anchor — update here when advancing the demo.
+export const MOCK_TODAY     = new Date("2026-05-31T00:00:00");
+export const MOCK_TODAY_STR = "2026-05-31";
+
+export function fmt(n: number) {
+  return n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+}
+
+// Sidebar rooftop order: pilot(s) first, then the rest alphabetically.
+export const NAV_ROOFTOPS = [
+  ...ROOFTOPS.filter((r) => r.pilot),
+  ...ROOFTOPS.filter((r) => !r.pilot).sort((a, b) => a.name.localeCompare(b.name)),
+];
+
 // ─── STATUS META ──────────────────────────────────────────────────────────────
 // One accent color (blue) for the active/in-progress state.
 // Green only for genuine success (approved). Everything else is neutral.

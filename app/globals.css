@@ -20,6 +20,7 @@
   --sr-border: rgba(166, 159, 149, 0.22);
   --sr-accent: #a69f95;
   --sr-accent-strong: #606b73;
+  --sr-blue: #5b9bd5;
 }
 
 @theme inline {
@@ -212,6 +213,7 @@ textarea {
 html.light {
   --background: #ffffff;
   --foreground: #000000;
+  --sr-blue: #2563eb;
   color-scheme: light;
 }
 
@@ -337,3 +339,12 @@ html.light textarea {
   color-scheme: light;
   color: #000000;
 }
+
+/* True blue — used for Available balance label */
+.text-sr-blue { color: var(--sr-blue); }
+
+/* Green action button — keep white text in both modes */
+.bg-green-800 { background-color: #166534; color: #ffffff; }
+.hover\:bg-green-700:hover { background-color: #15803d; color: #ffffff; }
+html.light .bg-green-800 { background-color: #1a7a34; color: #ffffff; }
+html.light .hover\:bg-green-700:hover { background-color: #228b3d; color: #ffffff; }

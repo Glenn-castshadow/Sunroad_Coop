@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import BrandMark from "./BrandMark";
-import type { FundRecord } from "@/app/data/mockData";
+import { MOCK_TODAY, type FundRecord } from "@/app/data/mockData";
 
 const ACTIVITY_TYPES = [
   "Digital — Search/Display",
@@ -49,7 +49,7 @@ export default function EditAgreementModal({
 
   function handleSave() {
     const newExpiry  = expiryDate;
-    const todayMs    = new Date("2026-05-31T00:00:00").getTime();
+    const todayMs    = MOCK_TODAY.getTime();
     const expiryMs   = new Date(newExpiry + "T00:00:00").getTime();
     const newDaysLeft = Math.ceil((expiryMs - todayMs) / 86400000);
 
@@ -225,7 +225,7 @@ export default function EditAgreementModal({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={3}
-              placeholder="Special terms, portal quirks, exceptions, reminders…"
+              placeholder="Special terms, portal quirks, opportunities, reminders…"
               className="w-full bg-[#22242c] border border-white/10 rounded-tl-lg rounded-br-lg rounded-tr-none rounded-bl-none px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500/50 resize-none"
             />
           </div>

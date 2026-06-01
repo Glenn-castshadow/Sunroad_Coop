@@ -19,13 +19,13 @@ function getClaimsSnapshot() {
   return claims;
 }
 
+// Module-level so referential equality is stable across renders.
+function setClaims(next: Claim[] | ((previous: Claim[]) => Claim[])) {
+  claims = typeof next === "function" ? next(claims) : next;
+  emit();
+}
+
 export function useClaims() {
   const currentClaims = useSyncExternalStore(subscribe, getClaimsSnapshot, getClaimsSnapshot);
-
-  function setClaims(next: Claim[] | ((previous: Claim[]) => Claim[])) {
-    claims = typeof next === "function" ? next(claims) : next;
-    emit();
-  }
-
   return [currentClaims, setClaims] as const;
 }

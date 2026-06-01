@@ -1,10 +1,6 @@
 "use client";
 import { useState } from "react";
-import { OEM_PROGRAMS, FUND_RECORDS, type Claim } from "@/app/data/mockData";
-
-function fmt(n: number) {
-  return n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
-}
+import { OEM_PROGRAMS, FUND_RECORDS, fmt, type Claim } from "@/app/data/mockData";
 
 interface Props {
   claims: Claim[];
@@ -18,7 +14,19 @@ export default function BulkSubmitModal({ claims, onClose, onSubmit }: Props) {
 
   const total   = claims.reduce((s, c) => s + c.eligibleAmount, 0);
   const program = OEM_PROGRAMS.find((p) => p.id === claims[0]?.programId);
-  const fund    = FUND_RECORDS.find((f) => f.id === claims[0]?.fundRecordId);
+
+  // Derive unique fund periods — bulk selection may span multiple periods (e.g. Q1 + H2).
+  const seenFundIds = new Set<string>();
+  const involvedFunds = claims.reduce<{ id: string; periodLabel: string }[]>((acc, c) => {
+    if (seenFundIds.has(c.fundRecordId)) return acc;
+    seenFundIds.add(c.fundRecordId);
+    const f = FUND_RECORDS.find((fr) => fr.id === c.fundRecordId);
+    if (f) acc.push(f);
+    return acc;
+  }, []);
+  const fundLabel = involvedFunds.length === 1
+    ? involvedFunds[0].periodLabel
+    : involvedFunds.map((f) => f.periodLabel).join(" + ");
 
   function handleSubmit() {
     setSubmitted(true);
@@ -93,7 +101,7 @@ export default function BulkSubmitModal({ claims, onClose, onSubmit }: Props) {
         <div className="bg-[#22242c] border-b border-white/8 px-6 py-4 flex items-center justify-between shrink-0">
           <div>
             <h2 className="text-sm font-bold text-white">Submit {claims.length} Claims to {program?.portal}</h2>
-            <p className="text-xs text-slate-500 mt-0.5">{fund?.periodLabel} · {fmt(total)} total</p>
+            <p className="text-xs text-slate-500 mt-0.5">{fundLabel} · {fmt(total)} total</p>
           </div>
           <button onClick={onClose} className="text-slate-500 hover:text-slate-300 transition-colors text-lg leading-none">✕</button>
         </div>
@@ -127,7 +135,7 @@ export default function BulkSubmitModal({ claims, onClose, onSubmit }: Props) {
             <ol className="space-y-2">
               {[
                 <>Log in → Co-op → Claims → <span className="text-slate-300">Bulk Submit</span></>,
-                <><span className="text-slate-300">Select period:</span> <span className="text-blue-300 font-mono text-[11px]">{fund?.periodLabel}</span></>,
+                <><span className="text-slate-300">Select period:</span> <span className="text-blue-300 font-mono text-[11px]">{fundLabel}</span></>,
                 <>Upload or paste the {claims.length} activity lines from the media buyer report</>,
                 <>Portal assigns a batch reference — copy and paste it below</>,
               ].map((t, i) => (

@@ -1,8 +1,9 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   FUND_RECORDS, ROOFTOPS, OEM_PROGRAMS,
-  expiryUrgency, URGENCY_META, type ClaimStatus, type Claim,
+  expiryUrgency, URGENCY_META, fmt, MOCK_TODAY, NAV_ROOFTOPS,
+  type ClaimStatus, type Claim,
 } from "@/app/data/mockData";
 import { useClaims } from "@/app/data/sessionStore";
 import StatusBadge from "@/app/components/StatusBadge";
@@ -12,6 +13,7 @@ import SubmitClaimModal from "@/app/components/SubmitClaimModal";
 import ClaimDetailModal from "@/app/components/ClaimDetailModal";
 import BulkSubmitModal from "@/app/components/BulkSubmitModal";
 import DeadlineCalendar from "@/app/components/DeadlineCalendar";
+import { READINESS_META, getClaimReadiness } from "@/app/data/claimInsights";
 
 const STATUS_TABS: { key: ClaimStatus | "all" | "prior"; label: string }[] = [
   { key: "all",         label: "All" },
@@ -22,20 +24,12 @@ const STATUS_TABS: { key: ClaimStatus | "all" | "prior"; label: string }[] = [
   { key: "prior",       label: "Prior Periods" },
 ];
 
-function fmt(n: number) {
-  return n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
-}
-
-const TODAY = new Date("2026-05-31T00:00:00");
+const TODAY = MOCK_TODAY;
 
 function daysUntilDeadline(dateStr: string) {
   return Math.ceil((new Date(dateStr + "T00:00:00").getTime() - TODAY.getTime()) / 86400000);
 }
 
-const NAV_ROOFTOPS = [
-  ...ROOFTOPS.filter((r) => r.pilot),
-  ...ROOFTOPS.filter((r) => !r.pilot).sort((a, b) => a.name.localeCompare(b.name)),
-];
 
 export default function AssociatePage() {
   const [activeTab,       setActiveTab]       = useState<ClaimStatus | "all" | "prior">("unsubmitted");
@@ -114,6 +108,19 @@ export default function AssociatePage() {
     showToast("Claims exported as CSV");
   }
 
+  useEffect(() => {
+    function openCalendar() {
+      setShowCalendar(true);
+    }
+
+    window.addEventListener("sunroad:open-calendar", openCalendar);
+    window.addEventListener("sunroad:export-csv", handleExport);
+    return () => {
+      window.removeEventListener("sunroad:open-calendar", openCalendar);
+      window.removeEventListener("sunroad:export-csv", handleExport);
+    };
+  });
+
   const kiaProgram = OEM_PROGRAMS.find((p) => p.pilot)!;
   const kiaFunds   = FUND_RECORDS.filter((f) => f.programId === kiaProgram.id);
   const kiaClaims  = claims.filter((c) => c.programId === kiaProgram.id);
@@ -139,6 +146,18 @@ export default function AssociatePage() {
   const pastDeadlineFunds = kiaFunds.filter((f) => f.daysUntilExpiry <= 0 && f.availableBalance > 0);
 
   const selectedClaimObjs = filtered.filter((c) => selectedClaims.has(c.id));
+  const actionableClaims = kiaClaims.filter((c) => c.status !== "paid" && c.status !== "expired");
+  const readinessCounts = actionableClaims.reduce(
+    (acc, claim) => {
+      const readiness = getClaimReadiness(claim, FUND_RECORDS);
+      acc[readiness.state] = (acc[readiness.state] ?? 0) + 1;
+      return acc;
+    },
+    {} as Partial<Record<ReturnType<typeof getClaimReadiness>["state"], number>>
+  );
+  const avgReadiness = actionableClaims.length
+    ? Math.round(actionableClaims.reduce((sum, claim) => sum + getClaimReadiness(claim, FUND_RECORDS).score, 0) / actionableClaims.length)
+    : 100;
 
   return (
     <div className="flex-1 min-h-0 bg-[#18191f] text-slate-200 flex">
@@ -179,31 +198,10 @@ export default function AssociatePage() {
               <p className="text-xs md:text-sm text-slate-500 mt-0.5">Kia Co-op · DAS Portal · Marketing Associate</p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              {/* Calendar */}
-              <button
-                onClick={() => setShowCalendar(true)}
-                title="Deadline Calendar"
-                className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/5 border border-white/10 text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <rect x="3" y="4" width="18" height="18" rx="2" strokeWidth="1.8"/>
-                  <path d="M16 2v4M8 2v4M3 10h18" strokeWidth="1.8"/>
-                </svg>
-              </button>
-              {/* Export */}
-              <button
-                onClick={handleExport}
-                title="Export CSV"
-                className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/5 border border-white/10 text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-                </svg>
-              </button>
               {/* New Recon */}
               <button
                 onClick={() => setShowNewRecon(true)}
-                className="flex items-center gap-1.5 px-3 md:px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-tl-lg rounded-br-lg rounded-tr-none rounded-bl-none transition-colors"
+                className="flex items-center gap-1.5 px-3 md:px-4 py-2 bg-green-800 hover:bg-green-700 text-white text-sm font-semibold rounded-tl-lg rounded-br-lg rounded-tr-none rounded-bl-none transition-colors"
               >
                 <span className="text-base leading-none">+</span>
                 <span className="hidden sm:inline">New Reconciliation</span>
@@ -374,6 +372,25 @@ export default function AssociatePage() {
               )}
             </div>
 
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+              <div className="bg-[#22242c] border border-white/8 rounded-tl-lg rounded-br-lg rounded-tr-none rounded-bl-none px-3 py-2">
+                <div className="text-lg font-bold text-emerald-400 leading-tight">{avgReadiness}%</div>
+                <div className="text-[10px] text-slate-600 uppercase tracking-wider">Capture Readiness</div>
+              </div>
+              {[
+                { state: "ready" as const, label: "Ready", value: readinessCounts.ready ?? 0 },
+                { state: "review" as const, label: "Needs Review", value: readinessCounts.review ?? 0 },
+                { state: "blocked" as const, label: "Needs Prep", value: readinessCounts.blocked ?? 0 },
+              ].map(({ state, label, value }) => (
+                <div key={state} className="bg-[#22242c] border border-white/8 rounded-tl-lg rounded-br-lg rounded-tr-none rounded-bl-none px-3 py-2">
+                  <div className={`text-lg font-bold leading-tight ${
+                    state === "ready" ? "text-emerald-400" : state === "review" ? "text-amber-400" : "text-rose-400"
+                  }`}>{value}</div>
+                  <div className="text-[10px] text-slate-600 uppercase tracking-wider">{label}</div>
+                </div>
+              ))}
+            </div>
+
             {/* Tab strip */}
             <div className="flex gap-0 border-b border-white/8 mb-4 overflow-x-auto overflow-y-hidden">
               {STATUS_TABS.map(({ key, label }) => (
@@ -421,6 +438,8 @@ export default function AssociatePage() {
                   const soonDeadline = daysLeft <= 21 && claim.status === "unsubmitted";
                   const isSelected   = selectedClaims.has(claim.id);
                   const isEditingRef = editingRefId === claim.id;
+                  const readiness    = getClaimReadiness(claim, FUND_RECORDS);
+                  const readinessMeta = READINESS_META[readiness.state];
 
                   return (
                     <div
@@ -453,6 +472,9 @@ export default function AssociatePage() {
                             {claim.activity}
                           </button>
                           <StatusBadge status={claim.status} />
+                          <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2 py-0.5 rounded border ${readinessMeta.className}`}>
+                            {readiness.label} · {readiness.score}%
+                          </span>
                           {soonDeadline && (
                             <span className="text-xs font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded">
                               Submit within {daysLeft}d
@@ -461,6 +483,12 @@ export default function AssociatePage() {
                         </div>
                         <div className="text-xs text-slate-500 mt-1">
                           {rt.name} · Recon {claim.reconciliationDate} · Deadline {claim.submissionDeadline}
+                        </div>
+                        <div className="mt-2 flex items-center gap-2 min-w-0">
+                          <div className="h-1.5 w-24 bg-white/8 rounded-full overflow-hidden shrink-0">
+                            <div className={`h-full ${readinessMeta.bar}`} style={{ width: `${readiness.score}%` }} />
+                          </div>
+                          <span className="text-[11px] text-slate-500 truncate">{readiness.reason}</span>
                         </div>
 
                         {/* OEM ref — inline edit for pending/approved */}
@@ -551,8 +579,12 @@ export default function AssociatePage() {
         <NewReconModal
           onClose={() => setShowNewRecon(false)}
           onSave={(data) => {
+            const nextNum = claims.reduce((max, c) => {
+              const n = parseInt(c.id.replace(/\D/g, ""), 10);
+              return isNaN(n) ? max : Math.max(max, n);
+            }, 0) + 1;
             const newClaim: Claim = {
-              id: `CLM-${String(claims.length + 1).padStart(3, "0")}`,
+              id: `CLM-${String(nextNum).padStart(3, "0")}`,
               rooftopId:           data.rooftopId,
               programId:           data.programId,
               fundRecordId:        data.fundRecordId,

@@ -1,11 +1,8 @@
 "use client";
 import { useState } from "react";
-import { ROOFTOPS, OEM_PROGRAMS, FUND_RECORDS, type Claim, type ClaimStatus } from "@/app/data/mockData";
+import { ROOFTOPS, OEM_PROGRAMS, FUND_RECORDS, fmt, type Claim, type ClaimStatus } from "@/app/data/mockData";
+import { READINESS_META, getClaimReadiness } from "@/app/data/claimInsights";
 import StatusBadge from "./StatusBadge";
-
-function fmt(n: number) {
-  return n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
-}
 
 interface Props {
   claim: Claim;
@@ -26,6 +23,8 @@ export default function ClaimDetailModal({ claim, onClose, onSave }: Props) {
 
   const isExpired  = claim.status === "expired";
   const statusIdx  = isExpired ? 0 : STATUS_ORDER.indexOf(claim.status as ClaimStatus);
+  const readiness = getClaimReadiness(claim, FUND_RECORDS);
+  const readinessMeta = READINESS_META[readiness.state];
 
   const timeline = [
     { key: "unsubmitted", label: "Created",   date: claim.reconciliationDate },
@@ -113,6 +112,29 @@ export default function ClaimDetailModal({ claim, onClose, onSave }: Props) {
           </div>
 
           {/* Claim details */}
+          <div className={`border rounded-tl-lg rounded-br-lg rounded-tr-none rounded-bl-none p-4 ${readinessMeta.className}`}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-[10px] font-semibold uppercase tracking-wider opacity-80">Capture Readiness</div>
+                <div className="text-sm font-bold mt-1">{readiness.label} · {readiness.score}%</div>
+                <div className="text-xs mt-1 opacity-80">{readiness.reason}</div>
+              </div>
+              <div className="w-20 h-1.5 bg-black/15 rounded-full overflow-hidden mt-2 shrink-0">
+                <div className={`h-full ${readinessMeta.bar}`} style={{ width: `${readiness.score}%` }} />
+              </div>
+            </div>
+            {(readiness.blockers.length > 0 || readiness.warnings.length > 0) && (
+              <div className="mt-3 space-y-1">
+                {[...readiness.blockers, ...readiness.warnings].map((item) => (
+                  <div key={item} className="text-xs opacity-85">• {item}</div>
+                ))}
+              </div>
+            )}
+            {readiness.actions.length > 0 && (
+              <div className="mt-2 text-xs opacity-80">Next: {readiness.actions[0]}</div>
+            )}
+          </div>
+
           <div className="bg-[#22242c] border border-white/8 rounded-tl-lg rounded-br-lg rounded-tr-none rounded-bl-none p-4">
             <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2.5">Claim Details</div>
             <div className="space-y-2">

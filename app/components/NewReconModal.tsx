@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { ROOFTOPS, OEM_PROGRAMS, FUND_RECORDS } from "@/app/data/mockData";
+import { ROOFTOPS, OEM_PROGRAMS, FUND_RECORDS, fmt, MOCK_TODAY_STR } from "@/app/data/mockData";
 
 interface Props {
   onClose: () => void;
@@ -24,14 +24,11 @@ const BLANK: ReconEntry = {
   fundRecordId: "F-KIA-KM-Q1",
   activity: "",
   eligibleAmount: "",
-  reconciliationDate: "2026-05-31",
+  reconciliationDate: MOCK_TODAY_STR,
   submissionDeadline: "2026-07-31",
   notes: "",
 };
 
-function fmt(n: number) {
-  return n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
-}
 
 export default function NewReconModal({ onClose, onSave }: Props) {
   const [form,         setForm]         = useState<ReconEntry>(BLANK);
@@ -56,7 +53,7 @@ export default function NewReconModal({ onClose, onSave }: Props) {
   const amount      = Number(form.eligibleAmount);
   const amountValid = form.eligibleAmount !== "" && Number.isFinite(amount) && amount > 0;
   const overBalance = !!selectedFund && amount > selectedFund.availableBalance;
-  const canProceed  = !!form.activity.trim() && amountValid && !overBalance && !!form.fundRecordId;
+  const canProceed  = !!form.activity.trim() && amountValid && !overBalance && !!form.fundRecordId && !!selectedFund;
 
   // Step-2 fund bar percentages
   const s2ClaimedPct = selectedFund ? Math.round((selectedFund.claimedYTD / selectedFund.accruedBalance) * 100) : 0;
@@ -233,13 +230,13 @@ export default function NewReconModal({ onClose, onSave }: Props) {
 
                           {/* 3-segment utilization bar */}
                           <div className="mt-3 h-1.5 bg-white/5 rounded-full overflow-hidden flex">
-                            <div className="bg-emerald-500 h-full" style={{ width: `${clPct}%` }}/>
-                            <div className="bg-amber-400 h-full" style={{ width: `${pnPct}%` }}/>
+                            <div className="bg-yellow-500 h-full" style={{ width: `${clPct}%` }}/>
+                            <div className="bg-stone-500 h-full" style={{ width: `${pnPct}%` }}/>
                           </div>
                           <div className="flex items-center justify-between mt-1.5">
                             <div className="flex gap-3 text-[10px] text-slate-600">
-                              <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"/>Claimed {fmt(f.claimedYTD)}</span>
-                              {f.pendingClaims > 0 && <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block"/>At OEM {fmt(f.pendingClaims)}</span>}
+                              <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-yellow-500 inline-block"/>Claimed {fmt(f.claimedYTD)}</span>
+                              {f.pendingClaims > 0 && <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-stone-500 inline-block"/>At OEM {fmt(f.pendingClaims)}</span>}
                             </div>
                             <span className="text-[10px] text-slate-600">{utilPct}% utilized · {avPct}% open</span>
                           </div>
@@ -284,17 +281,17 @@ export default function NewReconModal({ onClose, onSave }: Props) {
                   </div>
                   {/* Live impact bar: claimed + at OEM + this claim + remaining */}
                   <div className="h-2 bg-white/5 rounded-full overflow-hidden flex">
-                    <div className="bg-emerald-500 h-full transition-all" style={{ width: `${s2ClaimedPct}%` }}/>
-                    <div className="bg-amber-400 h-full transition-all" style={{ width: `${s2PendingPct}%` }}/>
+                    <div className="bg-yellow-500 h-full transition-all" style={{ width: `${s2ClaimedPct}%` }}/>
+                    <div className="bg-stone-500 h-full transition-all" style={{ width: `${s2PendingPct}%` }}/>
                     {s2NewPct > 0 && (
-                      <div className="bg-blue-400 h-full transition-all" style={{ width: `${s2NewPct}%` }}/>
+                      <div className="bg-green-500 h-full transition-all" style={{ width: `${s2NewPct}%` }}/>
                     )}
                   </div>
                   <div className="flex items-center justify-between mt-1.5 text-[10px]">
                     <div className="flex gap-3 text-slate-600">
-                      <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"/>Claimed</span>
-                      <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block"/>At OEM</span>
-                      {s2NewPct > 0 && <span className="flex items-center gap-1 text-blue-400"><span className="w-1.5 h-1.5 rounded-full bg-blue-400 inline-block"/>This claim</span>}
+                      <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-yellow-500 inline-block"/>Claimed</span>
+                      <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-stone-500 inline-block"/>At OEM</span>
+                      {s2NewPct > 0 && <span className="flex items-center gap-1 text-green-500"><span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block"/>This claim</span>}
                     </div>
                     {balanceAfter !== null && (
                       <span className="text-emerald-400 font-semibold">{fmt(balanceAfter)} remaining after</span>
@@ -400,7 +397,7 @@ export default function NewReconModal({ onClose, onSave }: Props) {
             <button
               disabled={!canProceed}
               onClick={() => onSave(form)}
-              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-tl-lg rounded-br-lg rounded-tr-none rounded-bl-none transition-colors"
+              className="px-5 py-2 bg-green-800 hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-tl-lg rounded-br-lg rounded-tr-none rounded-bl-none transition-colors"
             >
               Add to Queue
             </button>

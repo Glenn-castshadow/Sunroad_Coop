@@ -1,19 +1,14 @@
 "use client";
-import { useState } from "react";
-import { FUND_RECORDS, ROOFTOPS, OEM_PROGRAMS, expiryUrgency, URGENCY_META, type FundRecord } from "@/app/data/mockData";
+import { useEffect, useState } from "react";
+import { FUND_RECORDS, ROOFTOPS, OEM_PROGRAMS, expiryUrgency, URGENCY_META, fmt, MOCK_TODAY, NAV_ROOFTOPS, type FundRecord } from "@/app/data/mockData";
 import { useClaims } from "@/app/data/sessionStore";
 import StatusBadge from "@/app/components/StatusBadge";
 import BrandMark from "@/app/components/BrandMark";
 import EditAgreementModal from "@/app/components/EditAgreementModal";
 import DeadlineCalendar from "@/app/components/DeadlineCalendar";
+import { EXCEPTION_META, getClaimReadiness, getExceptionItems } from "@/app/data/claimInsights";
 
-function fmt(n: number) {
-  return n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
-}
-
-// Anchored to the mock dataset's "today" so server render and client hydration
-// match on every device/timezone (same reasoning as the associate view).
-const TODAY = new Date("2026-05-31T00:00:00");
+const TODAY = MOCK_TODAY;
 
 // Period-over-period utilization for trend sparkbars (prior periods hardcoded)
 const UTILIZATION_TREND: Record<string, { label: string; pct: number; isCurrent?: boolean }[]> = {
@@ -28,10 +23,6 @@ const UTILIZATION_TREND: Record<string, { label: string; pct: number; isCurrent?
   "HON-COOP-2025": [{ label: "H1 '25", pct: 91 }, { label: "H2 '25", pct: 87 }, { label: "Q1 '26", pct: 79, isCurrent: true }],
 };
 
-const NAV_ROOFTOPS = [
-  ...ROOFTOPS.filter((r) => r.pilot),
-  ...ROOFTOPS.filter((r) => !r.pilot).sort((a, b) => a.name.localeCompare(b.name)),
-];
 
 export default function DirectorPage() {
   const [selectedRooftopId, setSelectedRooftopId] = useState<string | null>(null);
@@ -41,7 +32,14 @@ export default function DirectorPage() {
   const [showCalendar,      setShowCalendar]      = useState(false);
   const [syncingFundId,     setSyncingFundId]     = useState<string | null>(null);
   const [syncedFundIds,     setSyncedFundIds]     = useState<Set<string>>(new Set());
+  const [toastMsg,          setToastMsg]          = useState<string | null>(null);
+  const [showOpportunities, setShowOpportunities] = useState(false);
   const [claims] = useClaims();
+
+  function showToast(msg: string) {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(null), 3000);
+  }
 
   function handleAgreementSave(fundId: string, updates: Partial<FundRecord>) {
     setFundRecords((prev) =>
@@ -55,6 +53,7 @@ export default function DirectorPage() {
     setTimeout(() => {
       setSyncingFundId(null);
       setSyncedFundIds((prev) => new Set([...prev, fundId]));
+      showToast("Portal sync complete — data is current");
     }, 1600);
   }
 
@@ -81,6 +80,19 @@ export default function DirectorPage() {
     URL.revokeObjectURL(url);
   }
 
+  useEffect(() => {
+    function openCalendar() {
+      setShowCalendar(true);
+    }
+
+    window.addEventListener("sunroad:open-calendar", openCalendar);
+    window.addEventListener("sunroad:export-csv", handleExport);
+    return () => {
+      window.removeEventListener("sunroad:open-calendar", openCalendar);
+      window.removeEventListener("sunroad:export-csv", handleExport);
+    };
+  });
+
   function toggleFund(id: string) {
     setExpandedFunds((prev) => {
       const next = new Set(prev);
@@ -106,6 +118,16 @@ export default function DirectorPage() {
     .sort((a, b) => a.daysUntilExpiry - b.daysUntilExpiry);
 
   const pastDeadline = visibleFunds.filter((f) => f.daysUntilExpiry <= 0 && f.availableBalance > 0);
+  const opportunityItems = getExceptionItems(claims, fundRecords)
+    .filter((item) => visibleRooftops.some((r) => r.name === item.rooftopName));
+  const highValueOpportunities = opportunityItems.filter((item) => item.severity === "critical").length;
+  const nextStepOpportunities  = opportunityItems.filter((item) => item.severity === "warning").length;
+  const readinessScores = claims
+    .filter((c) => visibleRooftops.some((r) => r.id === c.rooftopId) && c.status !== "paid")
+    .map((c) => getClaimReadiness(c, fundRecords).score);
+  const avgReadiness = readinessScores.length
+    ? Math.round(readinessScores.reduce((sum, score) => sum + score, 0) / readinessScores.length)
+    : 100;
 
   const rooftopRollup = visibleRooftops.map((rt) => {
     const funds  = fundRecords.filter((f) => f.rooftopId === rt.id);
@@ -182,22 +204,7 @@ export default function DirectorPage() {
         <div className="bg-[#22242c] border-b border-white/8 px-4 md:px-6 py-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-lg md:text-xl font-bold text-white">Fund Overview</h1>
-                <button onClick={() => setShowCalendar(true)} title="Deadline Calendar"
-                  className="w-7 h-7 flex items-center justify-center rounded hover:bg-white/8 text-slate-500 hover:text-slate-300 transition-colors">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <rect x="3" y="4" width="18" height="18" rx="2" strokeWidth="1.8"/>
-                    <path d="M16 2v4M8 2v4M3 10h18" strokeWidth="1.8"/>
-                  </svg>
-                </button>
-                <button onClick={handleExport} title="Export CSV"
-                  className="w-7 h-7 flex items-center justify-center rounded hover:bg-white/8 text-slate-500 hover:text-slate-300 transition-colors">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-                  </svg>
-                </button>
-              </div>
+              <h1 className="text-lg md:text-xl font-bold text-white">Fund Overview</h1>
               <p className="text-xs md:text-sm text-slate-500 mt-0.5">
                 Marketing Director · {selectedName} · {TODAY.getFullYear()}
               </p>
@@ -217,8 +224,8 @@ export default function DirectorPage() {
             </div>
             {/* KPI chips */}
             <div className="grid w-full grid-cols-2 gap-2 sm:gap-3 lg:flex lg:w-auto lg:flex-wrap lg:shrink-0">
-              {/* Accrued — wallet */}
-              <div className="bg-white/5 border border-white/10 rounded-tl-xl rounded-br-xl rounded-tr-none rounded-bl-none px-3 md:px-4 py-2.5 flex items-center gap-3 min-w-0 w-full lg:w-auto lg:min-w-[150px]">
+              {/* Accrued */}
+              <div className="bg-white/[0.04] border border-white/10 rounded-tl-xl rounded-br-xl rounded-tr-none rounded-bl-none px-3 md:px-4 py-2.5 flex items-center gap-3 min-w-0 w-full lg:w-auto lg:min-w-[150px]">
                 <div className="w-8 h-8 rounded-lg bg-white/8 flex items-center justify-center shrink-0">
                   <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
@@ -227,46 +234,46 @@ export default function DirectorPage() {
                 </div>
                 <div>
                   <div className="text-base md:text-lg font-bold text-white leading-tight">{fmt(totalAccrued)}</div>
-                  <div className="text-xs text-slate-500 font-medium">Accrued</div>
+                  <div className="text-xs text-green-500 font-medium">Accrued</div>
                 </div>
               </div>
-              {/* Claimed — check circle */}
-              <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-tl-xl rounded-br-xl rounded-tr-none rounded-bl-none px-3 md:px-4 py-2.5 flex items-center gap-3 min-w-0 w-full lg:w-auto lg:min-w-[150px]">
-                <div className="w-8 h-8 rounded-lg bg-emerald-500/15 flex items-center justify-center shrink-0">
-                  <svg className="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              {/* Claimed */}
+              <div className="bg-white/[0.04] border border-white/10 rounded-tl-xl rounded-br-xl rounded-tr-none rounded-bl-none px-3 md:px-4 py-2.5 flex items-center gap-3 min-w-0 w-full lg:w-auto lg:min-w-[150px]">
+                <div className="w-8 h-8 rounded-lg bg-white/8 flex items-center justify-center shrink-0">
+                  <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                       d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
                   </svg>
                 </div>
                 <div>
-                  <div className="text-base md:text-lg font-bold text-emerald-400 leading-tight">{fmt(totalClaimed)}</div>
-                  <div className="text-xs text-emerald-600 font-medium">Claimed</div>
+                  <div className="text-base md:text-lg font-bold text-white leading-tight">{fmt(totalClaimed)}</div>
+                  <div className="text-xs text-yellow-500 font-medium">Claimed</div>
                 </div>
               </div>
-              {/* At OEM — hourglass/clock */}
-              <div className="bg-amber-500/10 border border-amber-500/30 rounded-tl-xl rounded-br-xl rounded-tr-none rounded-bl-none px-3 md:px-4 py-2.5 flex items-center gap-3 min-w-0 w-full lg:w-auto lg:min-w-[150px]">
-                <div className="w-8 h-8 rounded-lg bg-amber-500/15 flex items-center justify-center shrink-0">
-                  <svg className="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              {/* At OEM */}
+              <div className="bg-white/[0.04] border border-white/10 rounded-tl-xl rounded-br-xl rounded-tr-none rounded-bl-none px-3 md:px-4 py-2.5 flex items-center gap-3 min-w-0 w-full lg:w-auto lg:min-w-[150px]">
+                <div className="w-8 h-8 rounded-lg bg-white/8 flex items-center justify-center shrink-0">
+                  <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
                       d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
                   </svg>
                 </div>
                 <div>
-                  <div className="text-base md:text-lg font-bold text-amber-400 leading-tight">{fmt(totalPending)}</div>
-                  <div className="text-xs text-amber-600 font-medium">At OEM</div>
+                  <div className="text-base md:text-lg font-bold text-white leading-tight">{fmt(totalPending)}</div>
+                  <div className="text-xs text-stone-400 font-medium">At OEM</div>
                 </div>
               </div>
-              {/* Available — coins/dollar */}
-              <div className="bg-blue-500/10 border border-blue-500/30 rounded-tl-xl rounded-br-xl rounded-tr-none rounded-bl-none px-3 md:px-4 py-2.5 flex items-center gap-3 min-w-0 w-full lg:w-auto lg:min-w-[150px]">
-                <div className="w-8 h-8 rounded-lg bg-blue-500/15 flex items-center justify-center shrink-0">
-                  <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              {/* Available */}
+              <div className="bg-white/[0.04] border border-white/10 rounded-tl-xl rounded-br-xl rounded-tr-none rounded-bl-none px-3 md:px-4 py-2.5 flex items-center gap-3 min-w-0 w-full lg:w-auto lg:min-w-[150px]">
+                <div className="w-8 h-8 rounded-lg bg-white/8 flex items-center justify-center shrink-0">
+                  <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}
                       d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                   </svg>
                 </div>
                 <div>
-                  <div className="text-base md:text-lg font-bold text-blue-400 leading-tight">{fmt(totalAvailable)}</div>
-                  <div className="text-xs text-blue-500 font-medium">Available</div>
+                  <div className="text-base md:text-lg font-bold text-white leading-tight">{fmt(totalAvailable)}</div>
+                  <div className="text-xs text-sr-blue font-medium">Available</div>
                 </div>
               </div>
             </div>
@@ -274,6 +281,97 @@ export default function DirectorPage() {
         </div>
 
         <div className="px-4 md:px-6 py-4 md:py-6 space-y-8">
+
+          {/* Opportunity center */}
+          <section>
+            <div className={`bg-[#22242c] border rounded-tl-xl rounded-br-xl rounded-tr-none rounded-bl-none overflow-hidden transition-colors ${
+              showOpportunities ? "border-white/15" : "border-white/8"
+            }`}>
+              <button
+                type="button"
+                onClick={() => setShowOpportunities((open) => !open)}
+                aria-expanded={showOpportunities}
+                className="w-full text-left flex items-stretch focus:outline-none focus-visible:ring-1 focus-visible:ring-blue-500/50 hover:bg-white/[0.02] transition-colors"
+              >
+                <div className="flex-1 min-w-0 px-4 md:px-5 py-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div className="min-w-0">
+                    <h2 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Opportunity Center</h2>
+                    <p className="text-xs text-slate-600 mt-1">Prioritized next moves to capture more co-op value.</p>
+                  </div>
+                  <div className="flex items-center gap-3 md:gap-5 shrink-0">
+                    <div className="grid grid-cols-3 gap-2 min-w-[260px] md:min-w-[360px]">
+                      {[
+                        { label: "High Value", value: highValueOpportunities, className: "text-emerald-400" },
+                        { label: "Next Steps", value: nextStepOpportunities, className: "text-blue-400" },
+                        { label: "Readiness", value: `${avgReadiness}%`, className: "text-emerald-400" },
+                      ].map(({ label, value, className }) => (
+                        <div key={label} className="bg-white/[0.035] border border-white/8 rounded-tl-lg rounded-br-lg rounded-tr-none rounded-bl-none px-3 py-2">
+                          <div className={`text-lg font-bold leading-tight ${className}`}>{value}</div>
+                          <div className="text-[10px] text-slate-600 uppercase tracking-wider">{label}</div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="hidden sm:flex items-center gap-2 text-xs font-semibold text-slate-500 whitespace-nowrap">
+                      {showOpportunities ? "Hide opportunities" : `${opportunityItems.length} opportunities`}
+                      <svg className={`w-4 h-4 transition-transform ${showOpportunities ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/>
+                      </svg>
+                    </div>
+                    <svg className={`sm:hidden w-4 h-4 text-slate-500 transition-transform ${showOpportunities ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/>
+                    </svg>
+                  </div>
+                </div>
+              </button>
+
+              {showOpportunities && (
+              <div className="border-t border-white/8">
+                {opportunityItems.length === 0 ? (
+                  <div className="px-4 py-5 text-sm text-slate-500">No active opportunity flags for this view.</div>
+                ) : (
+                  <div className="divide-y divide-white/5">
+                    {opportunityItems.slice(0, 6).map((item) => {
+                      const meta = EXCEPTION_META[item.severity];
+                      const readiness = item.claim ? getClaimReadiness(item.claim, fundRecords) : null;
+                      return (
+                        <div key={item.id} className="px-4 py-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded border text-[10px] font-semibold ${meta.className}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${meta.dot}`} />
+                                {meta.label}
+                              </span>
+                              <span className="text-sm font-bold text-slate-100">{item.title}</span>
+                              {readiness && (
+                                <span className="text-[10px] text-slate-500 bg-white/5 border border-white/8 rounded px-1.5 py-0.5">
+                                  Readiness {readiness.score}%
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-xs text-slate-500 mt-1 truncate">
+                              {item.rooftopName} · {item.detail}
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between gap-3 lg:w-[360px] lg:justify-end">
+                            <div className="text-xs text-slate-400 lg:text-right">{item.action}</div>
+                            {item.amount !== undefined && (
+                              <div className="text-sm font-mono font-bold text-white shrink-0">{fmt(item.amount)}</div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {opportunityItems.length > 6 && (
+                      <div className="px-4 py-2 text-xs text-slate-600">
+                        +{opportunityItems.length - 6} more opportunities in this view
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              )}
+            </div>
+          </section>
 
           {/* Fund balance cards — accordion */}
           <section>
@@ -343,31 +441,25 @@ export default function DirectorPage() {
                         </div>
 
                         {/* 3 stats — desktop only in collapsed row */}
-                        <div className="hidden md:flex items-center gap-5 shrink-0">
-                          <div>
-                            <div className="text-xs font-bold text-slate-300 mb-0.5">{fmt(fund.claimedYTD)}</div>
-                            <div className="flex items-center gap-1 text-[10px] text-slate-500 whitespace-nowrap">
-                              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block shrink-0"/>Claimed
+                        <div className="hidden md:flex items-center gap-10 shrink-0">
+                          {[
+                            { val: fund.claimedYTD,     dot: "bg-blue-500",  label: "Claimed" },
+                            { val: fund.pendingClaims,  dot: "bg-white/25",  label: "At OEM"  },
+                            { val: fund.accruedBalance, dot: "bg-white/15",  label: "Accrued" },
+                          ].map(({ val, dot, label }) => (
+                            <div key={label} className="w-[80px] flex flex-col">
+                              <div className="text-xs font-bold text-slate-300 mb-0.5 text-right tabular-nums">{fmt(val)}</div>
+                              <div className="flex items-center justify-end gap-1 text-[10px] text-slate-500 whitespace-nowrap">
+                                <span className={`w-1.5 h-1.5 rounded-full ${dot} inline-block shrink-0`}/>{label}
+                              </div>
                             </div>
-                          </div>
-                          <div>
-                            <div className="text-xs font-bold text-slate-300 mb-0.5">{fmt(fund.pendingClaims)}</div>
-                            <div className="flex items-center gap-1 text-[10px] text-slate-500 whitespace-nowrap">
-                              <span className="w-1.5 h-1.5 rounded-full bg-white/25 inline-block shrink-0"/>At OEM
-                            </div>
-                          </div>
-                          <div>
-                            <div className="text-xs font-bold text-slate-300 mb-0.5">{fmt(fund.accruedBalance)}</div>
-                            <div className="flex items-center gap-1 text-[10px] text-slate-500 whitespace-nowrap">
-                              <span className="w-1.5 h-1.5 rounded-full bg-white/15 inline-block shrink-0"/>Accrued
-                            </div>
-                          </div>
+                          ))}
                         </div>
 
                         {/* Available + chevron */}
                         <div className="flex items-center gap-2 shrink-0">
-                          <div className="text-right">
-                            <div className="text-base md:text-lg font-bold text-white leading-tight">{fmt(fund.availableBalance)}</div>
+                          <div className="w-[88px] text-right">
+                            <div className="text-base md:text-lg font-bold text-white leading-tight tabular-nums">{fmt(fund.availableBalance)}</div>
                             <div className="text-[10px] text-slate-500">available</div>
                           </div>
                           <svg
@@ -757,6 +849,13 @@ export default function DirectorPage() {
 
       {/* Deadline Calendar */}
       {showCalendar && <DeadlineCalendar fundRecords={fundRecords} onClose={() => setShowCalendar(false)} />}
+
+      {/* Toast */}
+      {toastMsg && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-[#22242c] border border-emerald-500/30 text-emerald-300 text-sm font-medium px-5 py-3 rounded-tl-xl rounded-br-xl rounded-tr-none rounded-bl-none shadow-xl">
+          {toastMsg}
+        </div>
+      )}
 
       {/* Edit Agreement Modal */}
       {editFund && (() => {

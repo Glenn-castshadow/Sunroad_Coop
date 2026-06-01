@@ -28,22 +28,30 @@ function BMW({ s }: { s: number }) {
 }
 
 function KiaLogo({ s }: { s: number }) {
-  // Wide oval badge — use non-square viewBox so the oval isn't squished
+  // Modern Kia-style connected wordmark.
   return (
-    <svg width={s} height={Math.round(s * 0.56)} viewBox="0 0 56 32" fill="none">
-      <rect width="56" height="32" rx="5" fill="#05141f"/>
-      {/* Outer oval ring */}
-      <ellipse cx="28" cy="16" rx="25" ry="13" fill="none" stroke="white" strokeWidth="1.5"/>
-      {/* KIA wordmark — bold, widely spaced */}
-      <text
-        x="28" y="21"
-        textAnchor="middle"
-        fill="white"
-        fontSize="13"
-        fontWeight="900"
-        fontFamily="Arial Black, Arial, sans-serif"
-        letterSpacing="3"
-      >KIA</text>
+    <svg width={s} height={Math.round(s * 0.56)} viewBox="0 0 72 40" fill="none">
+      <rect width="72" height="40" rx="7" fill="#05141F"/>
+      <path
+        d="M11 27.5V12.5M11 20L25.5 12.5M11 20L25.5 27.5"
+        stroke="white"
+        strokeWidth="4.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M34 27.5V12.5"
+        stroke="white"
+        strokeWidth="4.2"
+        strokeLinecap="round"
+      />
+      <path
+        d="M44.5 27.5L54.5 12.5L64.5 27.5M49 22.5H60"
+        stroke="white"
+        strokeWidth="4.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -92,14 +100,28 @@ function HondaLogo({ s }: { s: number }) {
 }
 
 function ChevroletLogo({ s }: { s: number }) {
-  // Golden bowtie on dark — two mirrored wing shapes
+  // Chevrolet bowtie with framed metallic shape.
   return (
     <svg width={s} height={s} viewBox="0 0 40 40" fill="none">
-      <rect width="40" height="40" rx="4" fill="#111"/>
-      {/* Left wing */}
-      <polygon points="1,15 18,15 21,20 18,25 1,25" fill="#D4AF37"/>
-      {/* Right wing */}
-      <polygon points="22,15 39,15 39,25 22,25 19,20" fill="#D4AF37"/>
+      <rect width="40" height="40" rx="6" fill="#111"/>
+      <path
+        d="M4 15.4H15.6L18.1 12.4H25.1L22.6 15.4H36V24.6H24.4L21.9 27.6H14.9L17.4 24.6H4V15.4Z"
+        fill="#141414"
+        stroke="#C9A24B"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M6.2 17.2H16.4L19 14.2H22.5L19.9 17.2H33.8V22.8H23.6L21 25.8H17.5L20.1 22.8H6.2V17.2Z"
+        fill="#D4AF37"
+      />
+      <path
+        d="M6.2 17.2H16.4L19 14.2H22.5L19.9 17.2H33.8"
+        stroke="#F2D875"
+        strokeWidth="0.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }

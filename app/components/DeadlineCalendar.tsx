@@ -1,18 +1,31 @@
 "use client";
 import { useState } from "react";
-import { FUND_RECORDS, ROOFTOPS, OEM_PROGRAMS, type FundRecord } from "@/app/data/mockData";
+import { FUND_RECORDS, ROOFTOPS, OEM_PROGRAMS, fmt, MOCK_TODAY_STR, type FundRecord } from "@/app/data/mockData";
+import { useClaims } from "@/app/data/sessionStore";
 import BrandMark from "./BrandMark";
 
-function fmt(n: number) {
-  return n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
-}
-function isoDate(y: number, m: number, d: number) {
-  return `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+const MONTH_NAMES  = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const MONTH_SHORT  = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const TODAY_STR    = MOCK_TODAY_STR;
+const TODAY_YEAR   = parseInt(TODAY_STR.slice(0, 4));
+const TODAY_MONTH  = parseInt(TODAY_STR.slice(5, 7)) - 1;
+
+const URGENCY_RANK: Record<string, number> = { critical: 4, warning: 3, healthy: 2, past: 1, none: 0 };
+
+function fundUrgency(f: FundRecord): "past" | "critical" | "warning" | "healthy" {
+  if (f.daysUntilExpiry <= 0)  return "past";
+  if (f.daysUntilExpiry <= 30) return "critical";
+  if (f.daysUntilExpiry <= 60) return "warning";
+  return "healthy";
 }
 
-const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-const DAY_ABBR    = ["Su","Mo","Tu","We","Th","Fr","Sa"];
-const TODAY_STR   = "2026-05-31";
+function maxUrgency(funds: FundRecord[]): "critical" | "warning" | "healthy" | "past" | "none" {
+  if (funds.length === 0) return "none";
+  return funds.reduce<"past" | "critical" | "warning" | "healthy">((acc, f) => {
+    const u = fundUrgency(f);
+    return URGENCY_RANK[u] > URGENCY_RANK[acc] ? u : acc;
+  }, "past");
+}
 
 interface Props {
   fundRecords?: FundRecord[];
@@ -20,38 +33,80 @@ interface Props {
 }
 
 export default function DeadlineCalendar({ fundRecords = FUND_RECORDS, onClose }: Props) {
-  // Default to June 2026 — most deadlines land here
-  const [year,  setYear]  = useState(2026);
-  const [month, setMonth] = useState(5);
-  const [selected, setSelected] = useState<string | null>("2026-06-30");
+  const [year,           setYear]           = useState(TODAY_YEAR);
+  const [selectedMonth,  setSelectedMonth]  = useState<number | null>(null);
+  const [claims] = useClaims();
 
-  function prevMonth() {
-    if (month === 0) { setYear((y) => y - 1); setMonth(11); }
-    else setMonth((m) => m - 1);
-    setSelected(null);
-  }
-  function nextMonth() {
-    if (month === 11) { setYear((y) => y + 1); setMonth(0); }
-    else setMonth((m) => m + 1);
-    setSelected(null);
-  }
-
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const firstDow    = new Date(year, month, 1).getDay();
-  const cells       = [...Array(firstDow).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
-  while (cells.length % 7 !== 0) cells.push(null);
-
-  const deadlineMap = fundRecords.reduce<Record<string, FundRecord[]>>((map, fund) => {
-    map[fund.expiryDate] = [...(map[fund.expiryDate] ?? []), fund];
+  // "YYYY-MM" → FundRecord[]
+  const monthMap = fundRecords.reduce<Record<string, FundRecord[]>>((map, fund) => {
+    const key = fund.expiryDate.slice(0, 7);
+    map[key] = [...(map[key] ?? []), fund];
     return map;
   }, {});
 
-  const selectedFunds = selected ? (deadlineMap[selected] ?? []) : [];
+  function getMonthFunds(m: number): FundRecord[] {
+    return monthMap[`${year}-${String(m + 1).padStart(2, "0")}`] ?? [];
+  }
 
-  // Total upcoming deadlines this month
-  const monthDeadlines = Object.entries(deadlineMap)
-    .filter(([d]) => d.startsWith(`${year}-${String(month + 1).padStart(2, "0")}`))
-    .flatMap(([, funds]) => funds);
+  function readyClaimsFor(funds: FundRecord[]) {
+    const fundIds = new Set(funds.map((f) => f.id));
+    return claims.filter((claim) => fundIds.has(claim.fundRecordId) && claim.status === "unsubmitted");
+  }
+
+  function availableFor(funds: FundRecord[]) {
+    return funds.reduce((sum, fund) => sum + Math.max(0, fund.availableBalance), 0);
+  }
+
+  function pendingFor(funds: FundRecord[]) {
+    return funds.reduce((sum, fund) => sum + Math.max(0, fund.pendingClaims), 0);
+  }
+
+  function nextActionFor(fund: FundRecord, readyCount: number) {
+    if (fund.daysUntilExpiry <= 0) return "Review learning";
+    if (readyCount > 0) return "Ready to file";
+    if (fund.pendingClaims > 0) return "Follow up";
+    if (fund.availableBalance > 0) return "Capture window";
+    return "Monitor";
+  }
+
+  const selectedFunds = selectedMonth !== null ? getMonthFunds(selectedMonth) : [];
+  const byDate        = selectedFunds.reduce<Record<string, FundRecord[]>>((acc, f) => {
+    acc[f.expiryDate] = [...(acc[f.expiryDate] ?? []), f];
+    return acc;
+  }, {});
+  const sortedDates = Object.keys(byDate).sort();
+  const selectedAvailable = availableFor(selectedFunds);
+  const selectedReady = readyClaimsFor(selectedFunds).length;
+  const selectedPending = pendingFor(selectedFunds);
+  const selectedNextDate = sortedDates.find((date) => date > TODAY_STR) ?? sortedDates[0];
+  const selectedNextDateLabel = selectedNextDate
+    ? new Date(selectedNextDate + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })
+    : "this month";
+  const selectedRecommendation =
+    selectedReady > 0
+      ? `File ${selectedReady} ready claim${selectedReady !== 1 ? "s" : ""} before ${selectedNextDateLabel}.`
+      : selectedPending > 0
+        ? `Follow up on ${fmt(selectedPending)} at OEM before ${selectedNextDateLabel}.`
+        : selectedAvailable > 0
+          ? `Capture eligible activity against ${fmt(selectedAvailable)} open before ${selectedNextDateLabel}.`
+          : "No active recommendation for this month.";
+  const topCaptureDate = Object.entries(monthMap)
+    .flatMap(([, funds]) => Object.entries(
+      funds.reduce<Record<string, FundRecord[]>>((acc, fund) => {
+        if (fund.daysUntilExpiry > 0 && fund.availableBalance > 0) {
+          acc[fund.expiryDate] = [...(acc[fund.expiryDate] ?? []), fund];
+        }
+        return acc;
+      }, {})
+    ))
+    .map(([date, funds]) => ({
+      date,
+      funds,
+      available: availableFor(funds),
+      ready: readyClaimsFor(funds).length,
+      days: Math.min(...funds.map((fund) => fund.daysUntilExpiry)),
+    }))
+    .sort((a, b) => a.days - b.days || b.available - a.available)[0];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -60,36 +115,48 @@ export default function DeadlineCalendar({ fundRecords = FUND_RECORDS, onClose }
 
         {/* Header */}
         <div className="bg-[#22242c] border-b border-white/8 px-6 py-4 flex items-center justify-between shrink-0">
-          <div>
-            <h2 className="text-sm font-bold text-white">Deadline Calendar</h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              All active fund periods across rooftops
-              {monthDeadlines.length > 0 && (
-                <> · <span className="text-amber-400">{monthDeadlines.length} deadline{monthDeadlines.length > 1 ? "s" : ""} this month</span></>
-              )}
-            </p>
+          <div className="flex items-center gap-3">
+            {selectedMonth !== null && (
+              <button
+                onClick={() => setSelectedMonth(null)}
+                className="w-7 h-7 flex items-center justify-center rounded hover:bg-white/8 text-slate-400 hover:text-white transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/>
+                </svg>
+              </button>
+            )}
+            <div>
+              <h2 className="text-sm font-bold text-white">
+                {selectedMonth !== null
+                  ? `${MONTH_NAMES[selectedMonth]} ${year}`
+                  : `Deadline Opportunity Calendar · ${year}`}
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {selectedMonth !== null
+                  ? `${fmt(selectedAvailable)} open · ${selectedReady} ready to file · ${selectedPending > 0 ? `${fmt(selectedPending)} at OEM` : "no OEM follow-up"}`
+                  : "Capture windows, ready claims, and open co-op dollars"}
+              </p>
+            </div>
           </div>
           <button onClick={onClose} className="text-slate-500 hover:text-slate-300 transition-colors text-lg leading-none">✕</button>
         </div>
 
-        <div className="flex flex-1 min-h-0 overflow-hidden">
-
-          {/* ── Calendar grid ── */}
-          <div className="flex-1 min-w-0 p-5 flex flex-col overflow-y-auto">
-
-            {/* Month navigation */}
+        {/* ── Year grid ── */}
+        {selectedMonth === null && (
+          <div className="flex-1 overflow-y-auto p-5">
             <div className="flex items-center justify-between mb-4">
               <button
-                onClick={prevMonth}
+                onClick={() => setYear(y => y - 1)}
                 className="w-8 h-8 flex items-center justify-center rounded hover:bg-white/8 text-slate-400 hover:text-white transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/>
                 </svg>
               </button>
-              <span className="text-sm font-bold text-white">{MONTH_NAMES[month]} {year}</span>
+              <span className="text-sm font-bold text-white">{year}</span>
               <button
-                onClick={nextMonth}
+                onClick={() => setYear(y => y + 1)}
                 className="w-8 h-8 flex items-center justify-center rounded hover:bg-white/8 text-slate-400 hover:text-white transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -98,76 +165,116 @@ export default function DeadlineCalendar({ fundRecords = FUND_RECORDS, onClose }
               </button>
             </div>
 
-            {/* Day-of-week headers */}
-            <div className="grid grid-cols-7 mb-1">
-              {DAY_ABBR.map((d) => (
-                <div key={d} className="text-center text-[10px] font-semibold text-slate-600 uppercase py-1">{d}</div>
-              ))}
-            </div>
+            {topCaptureDate && (
+              <button
+                type="button"
+                onClick={() => setSelectedMonth(parseInt(topCaptureDate.date.slice(5, 7)) - 1)}
+                className="w-full text-left bg-emerald-500/8 border border-emerald-500/25 rounded-tl-xl rounded-br-xl rounded-tr-none rounded-bl-none px-4 py-3 mb-4 hover:bg-emerald-500/12 transition-colors"
+              >
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <div className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider">Top Capture Window</div>
+                    <div className="text-sm font-bold text-slate-100 mt-0.5">
+                      {new Date(topCaptureDate.date + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" })} · {fmt(topCaptureDate.available)} open
+                    </div>
+                    <div className="text-xs text-slate-500 mt-0.5">
+                      {topCaptureDate.ready} ready to file · {topCaptureDate.funds.length} fund{topCaptureDate.funds.length !== 1 ? "s" : ""} in this window
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="text-lg font-bold text-emerald-400">{topCaptureDate.days}d</div>
+                    <div className="text-[10px] text-slate-600 uppercase tracking-wider">remaining</div>
+                  </div>
+                </div>
+              </button>
+            )}
 
-            {/* Day cells */}
-            <div className="grid grid-cols-7 gap-0.5 flex-1">
-              {cells.map((day, idx) => {
-                if (!day) return <div key={`e-${idx}`} />;
-                const dateStr     = isoDate(year, month, day);
-                const funds       = deadlineMap[dateStr] ?? [];
-                const isToday     = dateStr === TODAY_STR;
-                const isPast      = dateStr < TODAY_STR;
-                const isSelected  = dateStr === selected;
-                const hasDeadline = funds.length > 0;
+            <div className="grid grid-cols-3 gap-3">
+              {Array.from({ length: 12 }, (_, m) => {
+                const funds      = getMonthFunds(m);
+                const urgency    = maxUrgency(funds);
+                const isPast     = year < TODAY_YEAR || (year === TODAY_YEAR && m < TODAY_MONTH);
+                const isCurrent  = year === TODAY_YEAR && m === TODAY_MONTH;
+                const uniqueDates = [...new Set(funds.map(f => f.expiryDate))].sort();
+                const monthAvailable = availableFor(funds);
+                const monthReady = readyClaimsFor(funds).length;
+                const monthPending = pendingFor(funds);
 
-                // Urgency of earliest deadline on this date
-                const maxUrgency  = funds.reduce((acc, f) => {
-                  if (f.daysUntilExpiry <= 0)  return acc === "critical" ? acc : "past";
-                  if (f.daysUntilExpiry <= 30)  return "critical";
-                  if (f.daysUntilExpiry <= 60 && acc !== "critical") return "warning";
-                  return acc;
-                }, "healthy" as "past" | "critical" | "warning" | "healthy");
-
+                const borderCls =
+                  urgency === "critical" ? "border-amber-500/50" :
+                  urgency === "warning"  ? "border-white/20"     :
+                  urgency === "healthy"  ? "border-white/12"     :
+                  urgency === "past"     ? "border-white/8"      :
+                                          "border-white/8";
+                const bgCls =
+                  urgency === "critical"             ? "bg-amber-500/5 hover:bg-amber-500/10" :
+                  funds.length > 0 && !isPast        ? "bg-white/[0.03] hover:bg-white/[0.06]" :
+                  funds.length > 0                   ? "bg-white/[0.02] hover:bg-white/[0.04]" :
+                                                       "bg-white/[0.01]";
                 return (
                   <button
-                    key={dateStr}
-                    disabled={!hasDeadline}
-                    onClick={() => setSelected(isSelected ? null : dateStr)}
-                    className={`relative aspect-square flex flex-col items-center justify-start pt-1.5 rounded transition-colors ${
-                      isSelected
-                        ? "bg-blue-500/20 border border-blue-500/40"
-                        : hasDeadline
-                        ? "hover:bg-white/8 cursor-pointer border border-transparent"
-                        : "cursor-default border border-transparent"
-                    } ${isPast && !hasDeadline ? "opacity-25" : ""}`}
+                    key={m}
+                    onClick={funds.length > 0 ? () => setSelectedMonth(m) : undefined}
+                    disabled={funds.length === 0}
+                    className={`text-left p-3 rounded-tl-lg rounded-br-lg rounded-tr-none rounded-bl-none border transition-colors ${borderCls} ${bgCls} ${
+                      funds.length === 0 ? "cursor-default opacity-35" : "cursor-pointer"
+                    }`}
                   >
-                    <span className={`w-6 h-6 flex items-center justify-center rounded-full text-xs font-medium ${
-                      isToday     ? "bg-blue-500 text-white font-bold" :
-                      isSelected  ? "text-blue-300 font-semibold" :
-                      isPast      ? "text-slate-600" :
-                                    "text-slate-400"
-                    }`}>{day}</span>
+                    {/* Month name + count */}
+                    <div className="flex items-center justify-between mb-2">
+                      <span className={`text-sm font-bold ${
+                        isCurrent ? "text-blue-400" :
+                        isPast    ? "text-slate-500" :
+                                    "text-slate-200"
+                      }`}>
+                        {MONTH_SHORT[m]}
+                      </span>
+                      {funds.length > 0 && (
+                        <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+                          urgency === "critical" ? "bg-amber-500/20 text-amber-400" :
+                          urgency === "past"     ? "bg-white/5 text-slate-600"      :
+                                                   "bg-white/8 text-slate-400"
+                        }`}>
+                          {funds.length}
+                        </span>
+                      )}
+                    </div>
 
-                    {hasDeadline && (
-                      <div className="flex gap-0.5 mt-0.5 flex-wrap justify-center px-1">
-                        {funds.slice(0, 4).map((f, i) => (
-                          <div key={i} className={`w-1.5 h-1.5 rounded-full ${
-                            f.daysUntilExpiry <= 0  ? "bg-white/15"  :
-                            f.daysUntilExpiry <= 30  ? "bg-amber-400" :
-                            f.daysUntilExpiry <= 60  ? "bg-white/35"  :
-                                                       "bg-white/20"
-                          }`} />
-                        ))}
-                        {funds.length > 4 && (
-                          <span className="text-[8px] text-slate-600 leading-none mt-px">+{funds.length - 4}</span>
+                    {/* Month recommendation summary */}
+                    {uniqueDates.length > 0 ? (
+                      <div className="space-y-2">
+                        <div>
+                          <div className="text-[13px] font-bold text-slate-100 leading-none">{fmt(monthAvailable)}</div>
+                          <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-[10px] text-slate-500 leading-none">
+                            <span>{monthReady} ready</span>
+                            {monthPending > 0 && <span>{fmt(monthPending)} at OEM</span>}
+                          </div>
+                        </div>
+                        <div className="space-y-1">
+                        {uniqueDates.slice(0, 2).map(date => {
+                          const dateFunds  = funds.filter(f => f.expiryDate === date);
+                          const dayNum     = date.slice(8);
+                          const dateUrgency = maxUrgency(dateFunds);
+                          return (
+                            <div key={date} className="flex items-center gap-1.5">
+                              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                                dateUrgency === "critical" ? "bg-amber-400" :
+                                dateUrgency === "past"     ? "bg-white/15"  :
+                                                             "bg-white/30"
+                              }`} />
+                              <span className="text-[10px] text-slate-500 leading-none">
+                                {MONTH_SHORT[m]} {dayNum} &nbsp;·&nbsp; {dateFunds.length} fund{dateFunds.length !== 1 ? "s" : ""}
+                              </span>
+                            </div>
+                          );
+                        })}
+                        {uniqueDates.length > 2 && (
+                          <div className="text-[9px] text-slate-600 pl-3">+{uniqueDates.length - 2} more windows</div>
                         )}
+                        </div>
                       </div>
-                    )}
-
-                    {/* Urgency ring on deadline days */}
-                    {hasDeadline && !isSelected && (
-                      <div className={`absolute inset-0 rounded pointer-events-none border ${
-                        maxUrgency === "critical" ? "border-amber-500/30" :
-                        maxUrgency === "warning"  ? "border-white/12"     :
-                        maxUrgency === "past"     ? "border-white/5"      :
-                                                    "border-white/8"
-                      }`} />
+                    ) : (
+                      <div className="text-[10px] text-slate-600">No deadlines</div>
                     )}
                   </button>
                 );
@@ -176,83 +283,124 @@ export default function DeadlineCalendar({ fundRecords = FUND_RECORDS, onClose }
 
             {/* Legend */}
             <div className="flex gap-4 mt-4 pt-3 border-t border-white/8 text-[10px] text-slate-600">
-              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block"/>≤30 days</span>
-              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-white/35 inline-block"/>≤60 days</span>
-              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-white/20 inline-block"/>On track</span>
-              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-white/12 inline-block"/>Closed</span>
+              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-400 inline-block"/>Capture window ≤30d</span>
+              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-white/30 inline-block"/>Open window</span>
+              <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-white/15 inline-block"/>Prior period</span>
             </div>
           </div>
+        )}
 
-          {/* ── Detail panel ── */}
-          <div className="w-64 shrink-0 bg-[#1a1c23] border-l border-white/8 overflow-y-auto">
-            {selected ? (
-              <div className="p-4">
-                <div className="text-xs font-semibold text-slate-400 mb-3">
-                  {new Date(selected + "T00:00:00").toLocaleDateString("en-US", {
-                    weekday: "short", month: "long", day: "numeric", year: "numeric",
-                  })}
-                </div>
-                {selectedFunds.length === 0 ? (
-                  <div className="text-xs text-slate-600 italic">No deadlines on this date.</div>
-                ) : (
-                  <div className="space-y-3">
-                    {selectedFunds.map((f) => {
-                      const rt      = ROOFTOPS.find((r) => r.id === f.rooftopId)!;
-                      const program = OEM_PROGRAMS.find((p) => p.id === f.programId)!;
-                      const urgency = f.daysUntilExpiry <= 0  ? "past"     :
-                                      f.daysUntilExpiry <= 30  ? "critical" :
-                                      f.daysUntilExpiry <= 60  ? "warning"  : "healthy";
-                      return (
-                        <div key={f.id} className={`rounded-tl-lg rounded-br-lg rounded-tr-none rounded-bl-none border p-3 ${
-                          urgency === "critical" ? "border-amber-500/30 bg-amber-500/5" :
-                          urgency === "warning"  ? "border-white/8 bg-white/[0.02]"    :
-                          urgency === "past"     ? "border-white/5 bg-white/[0.015] opacity-60" :
-                                                   "border-white/8 bg-white/[0.02]"
-                        }`}>
-                          <div className="flex items-center gap-2 mb-1.5 min-w-0">
-                            <BrandMark brand={rt.brand} size={16} className="shrink-0" />
-                            <span className="text-xs font-semibold text-slate-200 truncate">{rt.name}</span>
-                          </div>
-                          <div className="text-[10px] text-slate-500 mb-2">
-                            {f.periodLabel} · {program.portal}
-                          </div>
-                          <div className="flex items-center justify-between text-[10px]">
-                            <span className={`font-semibold ${
-                              urgency === "past"     ? "text-slate-500" :
-                              urgency === "critical" ? "text-amber-400" :
-                              urgency === "warning"  ? "text-slate-400" : "text-slate-500"
-                            }`}>
-                              {f.daysUntilExpiry > 0 ? `${f.daysUntilExpiry}d remaining` : "Closed"}
-                            </span>
-                            <span className="text-blue-400 font-semibold">{fmt(f.availableBalance)}</span>
-                          </div>
-                          <div className="text-[9px] text-slate-600 text-right mt-0.5">available</div>
-                          {/* Mini utilization bar */}
-                          <div className="mt-2 h-1 bg-white/5 rounded-full overflow-hidden flex">
-                            <div className="bg-blue-500 h-full"
-                              style={{ width: `${Math.round((f.claimedYTD / f.accruedBalance) * 100)}%` }}/>
-                            <div className="bg-white/20 h-full"
-                              style={{ width: `${Math.min(100 - Math.round((f.claimedYTD / f.accruedBalance) * 100), Math.round((f.pendingClaims / f.accruedBalance) * 100))}%` }}/>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+        {/* ── Month detail view ── */}
+        {selectedMonth !== null && (
+          <div className="flex-1 overflow-y-auto p-5">
+            {selectedFunds.length === 0 ? (
+              <div className="text-xs text-slate-600 italic text-center py-8">No deadlines this month.</div>
             ) : (
-              <div className="p-4 pt-12 text-center">
-                <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center mx-auto mb-3">
-                  <svg className="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <rect x="3" y="4" width="18" height="18" rx="2" strokeWidth="1.5"/>
-                    <path d="M16 2v4M8 2v4M3 10h18" strokeWidth="1.5"/>
-                  </svg>
+              <div className="space-y-5">
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="rounded-tl-lg rounded-br-lg rounded-tr-none rounded-bl-none bg-white/[0.03] border border-white/8 p-3">
+                    <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Open</div>
+                    <div className="mt-1 text-sm font-bold text-white">{fmt(selectedAvailable)}</div>
+                  </div>
+                  <div className="rounded-tl-lg rounded-br-lg rounded-tr-none rounded-bl-none bg-emerald-500/8 border border-emerald-500/20 p-3">
+                    <div className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider">Ready</div>
+                    <div className="mt-1 text-sm font-bold text-white">{selectedReady} claims</div>
+                  </div>
+                  <div className="rounded-tl-lg rounded-br-lg rounded-tr-none rounded-bl-none bg-white/[0.03] border border-white/8 p-3">
+                    <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">At OEM</div>
+                    <div className="mt-1 text-sm font-bold text-white">{fmt(selectedPending)}</div>
+                  </div>
                 </div>
-                <div className="text-xs text-slate-600">Select a date with a deadline dot to see details</div>
+                <div className="rounded-tl-xl rounded-br-xl rounded-tr-none rounded-bl-none border border-emerald-500/20 bg-emerald-500/8 p-3">
+                  <div className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider">Recommended Next Step</div>
+                  <div className="mt-1 text-sm font-semibold text-slate-100">{selectedRecommendation}</div>
+                </div>
+                {sortedDates.map(date => {
+                  const dateFunds = byDate[date];
+                  const dayLabel  = new Date(date + "T00:00:00").toLocaleDateString("en-US", {
+                    weekday: "long", month: "long", day: "numeric",
+                  });
+                  const isClosed = date <= TODAY_STR;
+                  return (
+                    <div key={date}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">{dayLabel}</span>
+                        {isClosed && <span className="text-[10px] text-slate-600 italic">Closed</span>}
+                      </div>
+                      <div className="space-y-2">
+                        {dateFunds.map(f => {
+                          const rt         = ROOFTOPS.find(r => r.id === f.rooftopId)!;
+                          const program    = OEM_PROGRAMS.find(p => p.id === f.programId)!;
+                          const urgency    = fundUrgency(f);
+                          const readyCount = readyClaimsFor([f]).length;
+                          const nextAction = nextActionFor(f, readyCount);
+                          const claimedPct = Math.round((f.claimedYTD / f.accruedBalance) * 100);
+                          const pendingPct = Math.min(100 - claimedPct, Math.round((f.pendingClaims / f.accruedBalance) * 100));
+                          return (
+                            <div key={f.id} className={`rounded-tl-lg rounded-br-lg rounded-tr-none rounded-bl-none border p-3 ${
+                              urgency === "critical" ? "border-amber-500/30 bg-amber-500/5"           :
+                              urgency === "past"     ? "border-white/5 bg-white/[0.015] opacity-60"  :
+                                                       "border-white/8 bg-white/[0.02]"
+                            }`}>
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <BrandMark brand={rt.brand} size={18} className="shrink-0" />
+                                  <div className="min-w-0">
+                                    <div className="text-xs font-semibold text-slate-200 truncate">{rt.name}</div>
+                                    <div className="text-[10px] text-slate-500">{f.periodLabel} · {program.portal}</div>
+                                  </div>
+                                </div>
+                                <div className="text-right shrink-0">
+                                  <div className="text-sm font-bold text-white">{fmt(f.availableBalance)}</div>
+                                  <div className="text-[10px] text-slate-500">available</div>
+                                </div>
+                              </div>
+                              <div className="mt-3 grid grid-cols-3 gap-2 text-[10px]">
+                                <div>
+                                  <div className="text-slate-600 uppercase tracking-wider">Ready</div>
+                                  <div className="mt-0.5 font-semibold text-emerald-400">{readyCount}</div>
+                                </div>
+                                <div>
+                                  <div className="text-slate-600 uppercase tracking-wider">At OEM</div>
+                                  <div className="mt-0.5 font-semibold text-slate-300">{fmt(f.pendingClaims)}</div>
+                                </div>
+                                <div className="text-right">
+                                  <div className="text-slate-600 uppercase tracking-wider">Next</div>
+                                  <div className={`mt-0.5 font-semibold ${
+                                    nextAction === "Ready to file" ? "text-emerald-400" :
+                                    nextAction === "Capture window" ? "text-amber-400" :
+                                                                     "text-slate-300"
+                                  }`}>{nextAction}</div>
+                                </div>
+                              </div>
+                              <div className="mt-2.5 h-1.5 bg-white/5 rounded-full overflow-hidden flex">
+                                <div className="bg-yellow-500 h-full" style={{ width: `${claimedPct}%` }}/>
+                                <div className="bg-stone-500 h-full"  style={{ width: `${pendingPct}%` }}/>
+                              </div>
+                              <div className="flex items-center justify-between mt-1.5 text-[10px]">
+                                <div className="flex gap-3 text-slate-600">
+                                  <span className="flex items-center gap-1"><span className="w-1 h-1 rounded-full bg-yellow-500 inline-block"/>Claimed {fmt(f.claimedYTD)}</span>
+                                  {f.pendingClaims > 0 && <span className="flex items-center gap-1"><span className="w-1 h-1 rounded-full bg-stone-500 inline-block"/>At OEM {fmt(f.pendingClaims)}</span>}
+                                </div>
+                                <span className={`font-semibold ${
+                                  urgency === "past"     ? "text-slate-500" :
+                                  urgency === "critical" ? "text-amber-400" :
+                                                           "text-slate-400"
+                                }`}>
+                                  {f.daysUntilExpiry > 0 ? `${f.daysUntilExpiry}d remaining` : "Closed"}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
