@@ -146,7 +146,7 @@ export default function DirectorPage() {
     <div className="flex-1 min-h-0 bg-[#18191f] text-slate-200 flex">
 
       {/* Rooftop sidebar — desktop only */}
-      <aside className="hidden lg:flex w-52 shrink-0 bg-[#15161b] border-r border-white/8 flex-col pt-4 pb-8 overflow-y-auto">
+      <aside className="hidden lg:flex w-52 shrink-0 bg-[#15161b] border-r border-white/8 flex-col pt-[22px] pb-8 overflow-y-auto">
         <div className="px-4 mb-3">
           <span className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Rooftops</span>
         </div>
@@ -245,7 +245,7 @@ export default function DirectorPage() {
                   <div className="text-xs text-yellow-500 font-medium">Claimed</div>
                 </div>
               </div>
-              {/* At OEM */}
+              {/* Submitted */}
               <div className="bg-white/[0.04] border border-white/10 rounded-tl-xl rounded-br-xl rounded-tr-none rounded-bl-none px-3 md:px-4 py-2.5 flex items-center gap-3 min-w-0 w-full lg:w-auto lg:min-w-[150px]">
                 <div className="w-8 h-8 rounded-lg bg-white/8 flex items-center justify-center shrink-0">
                   <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -255,7 +255,7 @@ export default function DirectorPage() {
                 </div>
                 <div>
                   <div className="text-base md:text-lg font-bold text-white leading-tight">{fmt(totalPending)}</div>
-                  <div className="text-xs text-stone-400 font-medium">At OEM</div>
+                  <div className="text-xs text-stone-400 font-medium">Submitted</div>
                 </div>
               </div>
               {/* Available */}
@@ -375,7 +375,7 @@ export default function DirectorPage() {
                 const pendingPct = Math.min(100 - claimedPct, Math.round((fund.pendingClaims / fund.accruedBalance) * 100));
                 const unsubCount = claims.filter((c) => c.rooftopId === fund.rooftopId && c.status === "unsubmitted").length;
                 const isExpanded = expandedFunds.has(fund.id);
-                const borderCls  = urgency === "critical" ? "border-amber-500/40" : isExpanded ? "border-white/15" : "border-white/8";
+                const borderCls  = isExpanded ? "border-white/15" : "border-white/8";
                 return (
                   <div
                     key={fund.id}
@@ -417,7 +417,7 @@ export default function DirectorPage() {
                             {[
                               { label: "Accrued", dotStyle: { backgroundColor: "#22c55e" }, val: fund.accruedBalance },
                               { label: "Claimed", dotStyle: { backgroundColor: "#eab308" }, val: fund.claimedYTD },
-                              { label: "At OEM",  dotStyle: { backgroundColor: "#a69f95" }, val: fund.pendingClaims },
+                              { label: "Submitted", dotStyle: { backgroundColor: "#a69f95" }, val: fund.pendingClaims },
                             ].map(({ label, dotStyle, val }) => (
                               <div key={label} className="min-w-0">
                                 <div className="text-[11px] font-bold text-slate-300 leading-tight">{fmt(val)}</div>
@@ -435,7 +435,7 @@ export default function DirectorPage() {
                           {[
                             { val: fund.accruedBalance, dotStyle: { backgroundColor: "#22c55e" }, label: "Accrued" },
                             { val: fund.claimedYTD,     dotStyle: { backgroundColor: "#eab308" }, label: "Claimed" },
-                            { val: fund.pendingClaims,  dotStyle: { backgroundColor: "#a69f95" }, label: "At OEM"  },
+                            { val: fund.pendingClaims,  dotStyle: { backgroundColor: "#a69f95" }, label: "Submitted" },
                           ].map(({ val, dotStyle, label }) => (
                             <div key={label} className="w-[80px] flex flex-col">
                               <div className="text-xs font-bold text-slate-300 mb-0.5 text-right tabular-nums">{fmt(val)}</div>
@@ -483,7 +483,7 @@ export default function DirectorPage() {
                       };
                       const statusLabels: Record<string, string> = {
                         unsubmitted: "Ready to submit",
-                        pending:     "At OEM",
+                        pending:     "Submitted",
                         approved:    "Approved",
                         paid:        "Paid",
                         expired:     "Expired",
@@ -509,7 +509,7 @@ export default function DirectorPage() {
                             {[
                               { label: "Accrued",  dotStyle: { backgroundColor: "#22c55e" }, val: fund.accruedBalance },
                               { label: "Claimed",  dotStyle: { backgroundColor: "#eab308" }, val: fund.claimedYTD },
-                              { label: "At OEM",   dotStyle: { backgroundColor: "#a69f95" }, val: fund.pendingClaims },
+                              { label: "Submitted", dotStyle: { backgroundColor: "#a69f95" }, val: fund.pendingClaims },
                             ].map(({ label, dotStyle, val }) => (
                               <div key={label}>
                                 <div className="flex items-center gap-1 text-[10px] text-slate-500 mb-0.5">
@@ -532,7 +532,7 @@ export default function DirectorPage() {
                             </div>
                             <div className="flex gap-4 mt-1.5 text-[10px] text-slate-600">
                               <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: "#eab308" }}/>Claimed {claimedPct}%</span>
-                              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: "#a69f95" }}/>At OEM {pendingPct}%</span>
+                              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: "#a69f95" }}/>Submitted {pendingPct}%</span>
                               <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: "#5b9bd5" }}/>Available {availPct}%</span>
                             </div>
                           </div>
@@ -714,7 +714,7 @@ export default function DirectorPage() {
                             <div className="text-sm font-bold text-slate-500">{fmt(fund.claimedYTD)}</div>
                           </div>
                           <div>
-                            <div className="text-xs text-slate-600 mb-0.5">At OEM</div>
+                            <div className="text-xs text-slate-600 mb-0.5">Submitted</div>
                             <div className="text-sm font-bold text-slate-500">{fmt(fund.pendingClaims)}</div>
                           </div>
                           <div>

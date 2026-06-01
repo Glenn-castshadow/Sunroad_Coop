@@ -71,7 +71,7 @@ export default function BulkSubmitModal({ claims, onClose, onSubmit }: Props) {
             <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">What&rsquo;s next</div>
             {[
               <>{program?.portal} will review — typically <span className="text-slate-400">5–10 business days</span></>,
-              <>All {claims.length} claims move to <span className="text-slate-400">At OEM</span> tab</>,
+              <>All {claims.length} claims move to the <span className="text-slate-400">Submitted</span> tab</>,
               <>Status syncs automatically when the portal export is refreshed</>,
             ].map((t, i) => (
               <div key={i} className="flex items-start gap-2 text-xs text-slate-500">
@@ -161,7 +161,7 @@ export default function BulkSubmitModal({ claims, onClose, onSubmit }: Props) {
               placeholder={`e.g. ${(program?.portal ?? "OEM").toUpperCase().replace(/\s+/g, "")}-BATCH-2026-05`}
               className="w-full bg-[#22242c] border border-white/10 rounded-tl-lg rounded-br-lg rounded-tr-none rounded-bl-none px-3 py-2 text-sm text-slate-200 placeholder-slate-600 font-mono focus:outline-none focus:ring-1 focus:ring-blue-500/50"
             />
-            <p className="text-xs text-slate-600 mt-1">Optional — claims move to At OEM either way</p>
+            <p className="text-xs text-slate-600 mt-1">Optional — claims move to Submitted either way</p>
           </div>
         </div>
 

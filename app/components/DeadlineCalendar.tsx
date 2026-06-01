@@ -88,7 +88,7 @@ export default function DeadlineCalendar({ fundRecords = FUND_RECORDS, onClose, 
     selectedReady > 0
       ? `File ${selectedReady} ready claim${selectedReady !== 1 ? "s" : ""} before ${selectedNextDateLabel}.`
       : selectedPending > 0
-        ? `Follow up on ${fmt(selectedPending)} at OEM before ${selectedNextDateLabel}.`
+        ? `Follow up on ${fmt(selectedPending)} submitted before ${selectedNextDateLabel}.`
         : selectedAvailable > 0
           ? `Capture eligible activity against ${fmt(selectedAvailable)} open before ${selectedNextDateLabel}.`
           : "No active recommendation for this month.";
@@ -136,7 +136,7 @@ export default function DeadlineCalendar({ fundRecords = FUND_RECORDS, onClose, 
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
                 {selectedMonth !== null
-                  ? `${fmt(selectedAvailable)} open · ${selectedReady} ready to file · ${selectedPending > 0 ? `${fmt(selectedPending)} at OEM` : "no OEM follow-up"}`
+                  ? `${fmt(selectedAvailable)} open · ${selectedReady} ready to file · ${selectedPending > 0 ? `${fmt(selectedPending)} submitted` : "no submitted follow-up"}`
                   : "Capture windows, ready claims, and open co-op dollars"}
               </p>
             </div>
@@ -249,7 +249,7 @@ export default function DeadlineCalendar({ fundRecords = FUND_RECORDS, onClose, 
                           <div className="text-[13px] font-bold text-slate-100 leading-none">{fmt(monthAvailable)}</div>
                           <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-[10px] text-slate-500 leading-none">
                             <span>{monthReady} ready</span>
-                            {monthPending > 0 && <span>{fmt(monthPending)} at OEM</span>}
+                            {monthPending > 0 && <span>{fmt(monthPending)} submitted</span>}
                           </div>
                         </div>
                         <div className="space-y-1">
@@ -309,7 +309,7 @@ export default function DeadlineCalendar({ fundRecords = FUND_RECORDS, onClose, 
                     <div className="mt-1 text-sm font-bold text-white">{selectedReady} claims</div>
                   </div>
                   <div className="rounded-tl-lg rounded-br-lg rounded-tr-none rounded-bl-none bg-white/[0.03] border border-white/8 p-3">
-                    <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">At OEM</div>
+                    <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Submitted</div>
                     <div className="mt-1 text-sm font-bold text-white">{fmt(selectedPending)}</div>
                   </div>
                 </div>
@@ -367,7 +367,7 @@ export default function DeadlineCalendar({ fundRecords = FUND_RECORDS, onClose, 
                                   <div className="mt-0.5 font-semibold text-emerald-400">{readyCount}</div>
                                 </div>
                                 <div>
-                                  <div className="text-slate-600 uppercase tracking-wider">At OEM</div>
+                                  <div className="text-slate-600 uppercase tracking-wider">Submitted</div>
                                   <div className="mt-0.5 font-semibold text-slate-300">{fmt(f.pendingClaims)}</div>
                                 </div>
                                 <div className="text-right">
@@ -386,7 +386,7 @@ export default function DeadlineCalendar({ fundRecords = FUND_RECORDS, onClose, 
                               <div className="flex items-center justify-between mt-1.5 text-[10px]">
                                 <div className="flex gap-3 text-slate-600">
                                   <span className="flex items-center gap-1"><span className="w-1 h-1 rounded-full inline-block" style={{ backgroundColor: "#eab308" }}/>Claimed {fmt(f.claimedYTD)}</span>
-                                  {f.pendingClaims > 0 && <span className="flex items-center gap-1"><span className="w-1 h-1 rounded-full inline-block" style={{ backgroundColor: "#a69f95" }}/>At OEM {fmt(f.pendingClaims)}</span>}
+                                  {f.pendingClaims > 0 && <span className="flex items-center gap-1"><span className="w-1 h-1 rounded-full inline-block" style={{ backgroundColor: "#a69f95" }}/>Submitted {fmt(f.pendingClaims)}</span>}
                                 </div>
                                 <span className={`font-semibold ${
                                   urgency === "past"     ? "text-slate-500" :
@@ -419,7 +419,7 @@ export default function DeadlineCalendar({ fundRecords = FUND_RECORDS, onClose, 
                                       onClick={() => { onGoToTab?.("pending"); onClose(); }}
                                       className="w-full text-xs font-semibold py-2 px-3 rounded-tl-lg rounded-br-lg rounded-tr-none rounded-bl-none bg-white/5 text-slate-400 border border-white/10 hover:bg-white/10 transition-colors"
                                     >
-                                      View {fmt(f.pendingClaims)} at OEM →
+                                      View {fmt(f.pendingClaims)} submitted →
                                     </button>
                                   )}
                                 </div>

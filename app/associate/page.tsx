@@ -18,7 +18,7 @@ import { READINESS_META, getClaimReadiness } from "@/app/data/claimInsights";
 const STATUS_TABS: { key: ClaimStatus | "all" | "prior"; label: string }[] = [
   { key: "all",         label: "All" },
   { key: "unsubmitted", label: "Ready to Submit" },
-  { key: "pending",     label: "At OEM" },
+  { key: "pending",     label: "Submitted" },
   { key: "approved",    label: "Approved" },
   { key: "paid",        label: "Paid" },
   { key: "prior",       label: "Prior Periods" },
@@ -292,7 +292,7 @@ export default function AssociatePage() {
                         <div className="min-w-0">
                           <div className="text-sm md:text-base font-bold text-slate-200 mb-0.5 lg:mb-1">{fmt(fund.pendingClaims)}</div>
                           <div className="flex items-center gap-1 lg:gap-1.5 text-xs text-slate-500">
-                            <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: "#a69f95" }} />At OEM
+                            <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: "#a69f95" }} />Submitted
                           </div>
                         </div>
                         <div className="min-w-0">
@@ -345,7 +345,7 @@ export default function AssociatePage() {
                         </div>
                         <div className="min-w-0">
                           <div className="text-sm md:text-base font-bold text-slate-500 mb-0.5">{fmt(fund.pendingClaims)}</div>
-                          <div className="flex items-center gap-1 text-xs text-slate-600"><span className="w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: "#a69f95", opacity: 0.5 }} />At OEM</div>
+                          <div className="flex items-center gap-1 text-xs text-slate-600"><span className="w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: "#a69f95", opacity: 0.5 }} />Submitted</div>
                         </div>
                         <div className="min-w-0">
                           <div className="text-sm md:text-base font-bold text-slate-500 mb-0.5">{fmt(fund.accruedBalance)}</div>

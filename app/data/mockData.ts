@@ -529,7 +529,7 @@ export const NAV_ROOFTOPS = [
 // Green only for genuine success (approved). Everything else is neutral.
 export const STATUS_META: Record<ClaimStatus, { label: string; color: string; bg: string }> = {
   unsubmitted: { label: "Ready",    color: "text-slate-300",   bg: "bg-white/5 border-white/10" },
-  pending:     { label: "At OEM",   color: "text-blue-400",    bg: "bg-blue-500/10 border-blue-500/20" },
+  pending:     { label: "Submitted", color: "text-blue-400",    bg: "bg-blue-500/10 border-blue-500/20" },
   approved:    { label: "Approved", color: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-500/20" },
   paid:        { label: "Paid",     color: "text-slate-500",   bg: "bg-white/[0.03] border-white/8" },
   expired:     { label: "Expired",  color: "text-red-400",     bg: "bg-red-500/8 border-red-500/15" },

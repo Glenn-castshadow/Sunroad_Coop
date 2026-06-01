@@ -110,7 +110,7 @@ export function getClaimReadiness(claim: Claim, funds: FundRecord[] = FUND_RECOR
   }
 
   if (claim.status === "pending" && claim.submittedDate && daysBetween(claim.submittedDate) >= 14) {
-    warnings.push(`At OEM for ${daysBetween(claim.submittedDate)} days`);
+    warnings.push(`Submitted for ${daysBetween(claim.submittedDate)} days`);
     actions.push("Refresh portal export or follow up with OEM");
   }
 
@@ -264,7 +264,7 @@ export function getExceptionItems(claims: Claim[], funds: FundRecord[] = FUND_RE
           claim,
           "stale-oem",
           "warning",
-          `${claim.activity} — ${atOemDays}d at OEM`,
+          `${claim.activity} — ${atOemDays}d submitted`,
           `${rt?.name ?? "Unknown"} · submitted ${claim.submittedDate}`,
           "Refresh portal export",
           funds,
@@ -325,8 +325,8 @@ export const KIND_META: Record<ExceptionKind, { label: string; amountLabel: stri
   "deadline-risk":     { label: "Due soon",         amountLabel: "eligible",  className: "text-slate-100 bg-white/10 border-white/20",      dot: "bg-white/60" },
   "past-deadline":     { label: "Closed",           amountLabel: "forfeited", className: "text-slate-600 bg-white/[0.02] border-white/5",    dot: "bg-white/20" },
   "over-balance":      { label: "Over balance",     amountLabel: "eligible",  className: "text-slate-100 bg-white/10 border-white/20",      dot: "bg-white/60" },
-  "missing-reference": { label: "No reference",     amountLabel: "at OEM",    className: "text-slate-400 bg-white/5 border-white/10",       dot: "bg-white/35" },
-  "stale-oem":         { label: "At OEM",           amountLabel: "at OEM",    className: "text-slate-400 bg-white/5 border-white/10",       dot: "bg-white/35" },
+  "missing-reference": { label: "No reference",     amountLabel: "submitted", className: "text-slate-400 bg-white/5 border-white/10",       dot: "bg-white/35" },
+  "stale-oem":         { label: "Submitted",        amountLabel: "submitted", className: "text-slate-400 bg-white/5 border-white/10",       dot: "bg-white/35" },
   "approved-unpaid":   { label: "Awaiting payment", amountLabel: "approved",  className: "text-slate-300 bg-white/[0.03] border-white/8",   dot: "bg-white/45" },
   "closed-balance":    { label: "Period closed",    amountLabel: "unclaimed", className: "text-slate-600 bg-white/[0.02] border-white/5",    dot: "bg-white/20" },
 };

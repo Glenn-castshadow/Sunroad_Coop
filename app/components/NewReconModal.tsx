@@ -248,7 +248,7 @@ export default function NewReconModal({ onClose, onSave, initialFundId, initialR
                           <div className="flex items-center justify-between mt-1.5">
                             <div className="flex gap-3 text-[10px] text-slate-600">
                               <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: "#eab308" }}/>Claimed {fmt(f.claimedYTD)}</span>
-                              {f.pendingClaims > 0 && <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: "#a69f95" }}/>At OEM {fmt(f.pendingClaims)}</span>}
+                              {f.pendingClaims > 0 && <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: "#a69f95" }}/>Submitted {fmt(f.pendingClaims)}</span>}
                             </div>
                             <span className="text-[10px] text-slate-600">{utilPct}% utilized · {avPct}% open</span>
                           </div>
@@ -291,7 +291,7 @@ export default function NewReconModal({ onClose, onSave, initialFundId, initialR
                       <div className="text-[10px] text-slate-500">Available</div>
                     </div>
                   </div>
-                  {/* Live impact bar: claimed + at OEM + this claim + remaining */}
+                  {/* Live impact bar: claimed + submitted + this claim + remaining */}
                   <div className="h-2 bg-white/5 rounded-full overflow-hidden flex">
                     <div className="h-full transition-all" style={{ width: `${s2ClaimedPct}%`, backgroundColor: "#eab308" }}/>
                     <div className="h-full transition-all" style={{ width: `${s2PendingPct}%`, backgroundColor: "#a69f95" }}/>
@@ -302,7 +302,7 @@ export default function NewReconModal({ onClose, onSave, initialFundId, initialR
                   <div className="flex items-center justify-between mt-1.5 text-[10px]">
                     <div className="flex gap-3 text-slate-600">
                       <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: "#eab308" }}/>Claimed</span>
-                      <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: "#a69f95" }}/>At OEM</span>
+                      <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: "#a69f95" }}/>Submitted</span>
                       {s2NewPct > 0 && <span className="flex items-center gap-1 text-emerald-400"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"/>This claim</span>}
                     </div>
                     {balanceAfter !== null && (
