@@ -271,6 +271,7 @@ export interface Claim {
   paidDate?: string;
   oemReference?: string;      // OEM claim # once submitted
   notes?: string;
+  docChecks?: Record<string, boolean>; // per-doc checklist state
 }
 
 export const CLAIMS: Claim[] = [

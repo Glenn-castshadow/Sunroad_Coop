@@ -4,18 +4,51 @@ import { ROOFTOPS, OEM_PROGRAMS, FUND_RECORDS, fmt, type Claim, type ClaimStatus
 import { READINESS_META, getClaimReadiness } from "@/app/data/claimInsights";
 import StatusBadge from "./StatusBadge";
 
+interface DocItem {
+  id: string;
+  label: string;
+  detail: string;
+}
+
+function getDocItems(activity: string, status: string): DocItem[] {
+  const lower = activity.toLowerCase();
+  const isBroadcast = /radio|tv|broadcast|spot/.test(lower);
+  const isDigital   = /digital|search|display|social|pmax|video/.test(lower);
+  const items: DocItem[] = [
+    { id: "invoice",  label: "Media buyer invoice",       detail: "Itemized invoice showing eligible spend amount" },
+    { id: "proof",    label: "Proof of performance",      detail: isDigital ? "Screenshot or impression/click report" : "Tearsheet or placement confirmation" },
+    { id: "recon",    label: "Reconciliation sign-off",   detail: "Approved reconciliation document from media buyer" },
+    { id: "dates",    label: "Flight dates confirmed",    detail: "Activity dates fall within the fund accrual period" },
+  ];
+  if (isBroadcast) {
+    items.splice(2, 0, { id: "affidavit", label: "Affidavit of performance", detail: "Required by Kia DAS for broadcast & radio placements" });
+  }
+  if (status !== "unsubmitted") {
+    items.push({ id: "portal-ref", label: "Portal reference captured", detail: "OEM batch/claim reference saved in this record" });
+  }
+  return items;
+}
+
 interface Props {
   claim: Claim;
   onClose: () => void;
-  onSave: (claimId: string, updates: { oemReference?: string; notes?: string }) => void;
+  onSave: (claimId: string, updates: { oemReference?: string; notes?: string; docChecks?: Record<string, boolean> }) => void;
 }
 
 const STATUS_ORDER: ClaimStatus[] = ["unsubmitted", "pending", "approved", "paid"];
 
 export default function ClaimDetailModal({ claim, onClose, onSave }: Props) {
-  const [oemRef, setOemRef] = useState(claim.oemReference ?? "");
-  const [notes,  setNotes]  = useState(claim.notes ?? "");
-  const [saved,  setSaved]  = useState(false);
+  const [oemRef,     setOemRef]     = useState(claim.oemReference ?? "");
+  const [notes,      setNotes]      = useState(claim.notes ?? "");
+  const [saved,      setSaved]      = useState(false);
+  const [docChecks,  setDocChecks]  = useState<Record<string, boolean>>(claim.docChecks ?? {});
+
+  const docItems   = getDocItems(claim.activity, claim.status);
+  const checkedCount = docItems.filter((d) => docChecks[d.id]).length;
+
+  function toggleDoc(id: string) {
+    setDocChecks((prev) => ({ ...prev, [id]: !prev[id] }));
+  }
 
   const rt      = ROOFTOPS.find((r) => r.id === claim.rooftopId)!;
   const program = OEM_PROGRAMS.find((p) => p.id === claim.programId)!;
@@ -37,6 +70,7 @@ export default function ClaimDetailModal({ claim, onClose, onSave }: Props) {
     onSave(claim.id, {
       oemReference: oemRef.trim() || undefined,
       notes:        notes.trim()  || undefined,
+      docChecks,
     });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
@@ -153,6 +187,65 @@ export default function ClaimDetailModal({ claim, onClose, onSave }: Props) {
             </div>
           </div>
 
+          {/* Document checklist */}
+          <div className="bg-[#22242c] border border-white/8 rounded-tl-lg rounded-br-lg rounded-tr-none rounded-bl-none p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Submission Package</div>
+              <div className="flex items-center gap-2">
+                <div className="flex gap-0.5">
+                  {docItems.map((d, i) => (
+                    <div key={d.id} className={`h-1 rounded-full transition-colors ${
+                      i < checkedCount ? "bg-emerald-500" : "bg-white/10"
+                    }`} style={{ width: 14 }} />
+                  ))}
+                </div>
+                <span className={`text-[10px] font-semibold tabular-nums ${
+                  checkedCount === docItems.length ? "text-emerald-400" : "text-slate-500"
+                }`}>{checkedCount}/{docItems.length}</span>
+              </div>
+            </div>
+            <div className="space-y-1">
+              {docItems.map((doc) => {
+                const checked = !!docChecks[doc.id];
+                return (
+                  <button
+                    key={doc.id}
+                    type="button"
+                    onClick={() => toggleDoc(doc.id)}
+                    className={`w-full flex items-start gap-3 px-3 py-2.5 rounded text-left transition-colors ${
+                      checked
+                        ? "bg-emerald-500/8 hover:bg-emerald-500/12"
+                        : "bg-white/[0.02] hover:bg-white/5"
+                    }`}
+                  >
+                    <div className={`mt-0.5 w-4 h-4 rounded border shrink-0 flex items-center justify-center transition-colors ${
+                      checked
+                        ? "bg-emerald-500 border-emerald-500"
+                        : "border-white/20 bg-transparent"
+                    }`}>
+                      {checked && (
+                        <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7"/>
+                        </svg>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <div className={`text-xs font-medium leading-tight ${checked ? "text-emerald-300 line-through decoration-emerald-500/50" : "text-slate-200"}`}>
+                        {doc.label}
+                      </div>
+                      <div className="text-[10px] text-slate-600 mt-0.5 leading-tight">{doc.detail}</div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            {checkedCount === docItems.length && (
+              <div className="mt-3 text-[11px] text-emerald-400 font-semibold text-center">
+                Package complete — ready to submit to {OEM_PROGRAMS.find(p => p.id === claim.programId)?.portal}
+              </div>
+            )}
+          </div>
+
           {/* OEM Reference */}
           <div>
             <label className="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1.5">
@@ -186,7 +279,7 @@ export default function ClaimDetailModal({ claim, onClose, onSave }: Props) {
           <button
             onClick={handleSave}
             className={`px-5 py-2 text-sm font-semibold rounded-tl-lg rounded-br-lg rounded-tr-none rounded-bl-none transition-colors flex items-center gap-2 ${
-              saved ? "bg-emerald-600 text-white" : "bg-blue-600 hover:bg-blue-500 text-white"
+              saved ? "bg-emerald-600 text-white" : "bg-green-800 hover:bg-green-700 text-white"
             }`}
           >
             {saved ? (

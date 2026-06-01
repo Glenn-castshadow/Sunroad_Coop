@@ -30,9 +30,11 @@ function maxUrgency(funds: FundRecord[]): "critical" | "warning" | "healthy" | "
 interface Props {
   fundRecords?: FundRecord[];
   onClose: () => void;
+  onNewRecon?: (fundRecordId: string, rooftopId: string) => void;
+  onGoToTab?: (tab: "unsubmitted" | "pending" | "prior") => void;
 }
 
-export default function DeadlineCalendar({ fundRecords = FUND_RECORDS, onClose }: Props) {
+export default function DeadlineCalendar({ fundRecords = FUND_RECORDS, onClose, onNewRecon, onGoToTab }: Props) {
   const [year,           setYear]           = useState(TODAY_YEAR);
   const [selectedMonth,  setSelectedMonth]  = useState<number | null>(null);
   const [claims] = useClaims();
@@ -334,8 +336,12 @@ export default function DeadlineCalendar({ fundRecords = FUND_RECORDS, onClose }
                           const urgency    = fundUrgency(f);
                           const readyCount = readyClaimsFor([f]).length;
                           const nextAction = nextActionFor(f, readyCount);
-                          const claimedPct = Math.round((f.claimedYTD / f.accruedBalance) * 100);
-                          const pendingPct = Math.min(100 - claimedPct, Math.round((f.pendingClaims / f.accruedBalance) * 100));
+                          const base       = f.accruedBalance || 1;
+                          const claimedPct = Math.round((f.claimedYTD / base) * 100);
+                          const pendingPct = Math.min(100 - claimedPct, Math.round((f.pendingClaims / base) * 100));
+                          const showSubmit  = readyCount > 0 && !isClosed;
+                          const showRecon   = !isClosed && readyCount === 0 && f.availableBalance > 0;
+                          const showFollowUp = !isClosed && f.pendingClaims > 0 && !showSubmit && !showRecon;
                           return (
                             <div key={f.id} className={`rounded-tl-lg rounded-br-lg rounded-tr-none rounded-bl-none border p-3 ${
                               urgency === "critical" ? "border-amber-500/30 bg-amber-500/5"           :
@@ -374,13 +380,13 @@ export default function DeadlineCalendar({ fundRecords = FUND_RECORDS, onClose }
                                 </div>
                               </div>
                               <div className="mt-2.5 h-1.5 bg-white/5 rounded-full overflow-hidden flex">
-                                <div className="bg-yellow-500 h-full" style={{ width: `${claimedPct}%` }}/>
-                                <div className="bg-stone-500 h-full"  style={{ width: `${pendingPct}%` }}/>
+                                <div className="h-full" style={{ width: `${claimedPct}%`, backgroundColor: "#eab308" }}/>
+                                <div className="h-full" style={{ width: `${pendingPct}%`, backgroundColor: "#a69f95" }}/>
                               </div>
                               <div className="flex items-center justify-between mt-1.5 text-[10px]">
                                 <div className="flex gap-3 text-slate-600">
-                                  <span className="flex items-center gap-1"><span className="w-1 h-1 rounded-full bg-yellow-500 inline-block"/>Claimed {fmt(f.claimedYTD)}</span>
-                                  {f.pendingClaims > 0 && <span className="flex items-center gap-1"><span className="w-1 h-1 rounded-full bg-stone-500 inline-block"/>At OEM {fmt(f.pendingClaims)}</span>}
+                                  <span className="flex items-center gap-1"><span className="w-1 h-1 rounded-full inline-block" style={{ backgroundColor: "#eab308" }}/>Claimed {fmt(f.claimedYTD)}</span>
+                                  {f.pendingClaims > 0 && <span className="flex items-center gap-1"><span className="w-1 h-1 rounded-full inline-block" style={{ backgroundColor: "#a69f95" }}/>At OEM {fmt(f.pendingClaims)}</span>}
                                 </div>
                                 <span className={`font-semibold ${
                                   urgency === "past"     ? "text-slate-500" :
@@ -390,6 +396,34 @@ export default function DeadlineCalendar({ fundRecords = FUND_RECORDS, onClose }
                                   {f.daysUntilExpiry > 0 ? `${f.daysUntilExpiry}d remaining` : "Closed"}
                                 </span>
                               </div>
+                              {(showSubmit || showRecon || showFollowUp) && (
+                                <div className="mt-3 pt-3 border-t border-white/8">
+                                  {showSubmit && (
+                                    <button
+                                      onClick={() => { onGoToTab?.("unsubmitted"); onClose(); }}
+                                      className="w-full text-xs font-semibold py-2 px-3 rounded-tl-lg rounded-br-lg rounded-tr-none rounded-bl-none bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 transition-colors"
+                                    >
+                                      Submit {readyCount} claim{readyCount !== 1 ? "s" : ""} in queue →
+                                    </button>
+                                  )}
+                                  {showRecon && (
+                                    <button
+                                      onClick={() => { onNewRecon?.(f.id, f.rooftopId); onClose(); }}
+                                      className="w-full text-xs font-semibold py-2 px-3 rounded-tl-lg rounded-br-lg rounded-tr-none rounded-bl-none bg-green-800 hover:bg-green-700 text-white transition-colors"
+                                    >
+                                      + New Reconciliation for {f.periodLabel}
+                                    </button>
+                                  )}
+                                  {showFollowUp && (
+                                    <button
+                                      onClick={() => { onGoToTab?.("pending"); onClose(); }}
+                                      className="w-full text-xs font-semibold py-2 px-3 rounded-tl-lg rounded-br-lg rounded-tr-none rounded-bl-none bg-white/5 text-slate-400 border border-white/10 hover:bg-white/10 transition-colors"
+                                    >
+                                      View {fmt(f.pendingClaims)} at OEM →
+                                    </button>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           );
                         })}

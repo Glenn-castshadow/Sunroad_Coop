@@ -5,6 +5,8 @@ import { ROOFTOPS, OEM_PROGRAMS, FUND_RECORDS, fmt, MOCK_TODAY_STR } from "@/app
 interface Props {
   onClose: () => void;
   onSave: (data: ReconEntry) => void;
+  initialFundId?: string;
+  initialRooftopId?: string;
 }
 
 export interface ReconEntry {
@@ -30,8 +32,18 @@ const BLANK: ReconEntry = {
 };
 
 
-export default function NewReconModal({ onClose, onSave }: Props) {
-  const [form,         setForm]         = useState<ReconEntry>(BLANK);
+export default function NewReconModal({ onClose, onSave, initialFundId, initialRooftopId }: Props) {
+  const [form,         setForm]         = useState<ReconEntry>(() => {
+    if (!initialFundId && !initialRooftopId) return BLANK;
+    const fund = initialFundId ? FUND_RECORDS.find(f => f.id === initialFundId) : undefined;
+    return {
+      ...BLANK,
+      rooftopId: initialRooftopId ?? fund?.rooftopId ?? BLANK.rooftopId,
+      programId: fund?.programId ?? BLANK.programId,
+      fundRecordId: initialFundId ?? BLANK.fundRecordId,
+      submissionDeadline: fund?.expiryDate ?? BLANK.submissionDeadline,
+    };
+  });
   const [step,         setStep]         = useState<1 | 2>(1);
   const [uploadedFile, setUploadedFile] = useState<string | null>(null);
   const [dragOver,     setDragOver]     = useState(false);
@@ -224,19 +236,19 @@ export default function NewReconModal({ onClose, onSave }: Props) {
                             </div>
                             <div className="text-right shrink-0">
                               <div className="text-sm font-bold text-blue-400">{fmt(f.availableBalance)}</div>
-                              <div className="text-[10px] text-slate-500">available</div>
+                              <div className="text-[10px] text-slate-500">Available</div>
                             </div>
                           </div>
 
                           {/* 3-segment utilization bar */}
                           <div className="mt-3 h-1.5 bg-white/5 rounded-full overflow-hidden flex">
-                            <div className="bg-yellow-500 h-full" style={{ width: `${clPct}%` }}/>
-                            <div className="bg-stone-500 h-full" style={{ width: `${pnPct}%` }}/>
+                            <div className="h-full" style={{ width: `${clPct}%`, backgroundColor: "#eab308" }}/>
+                            <div className="h-full" style={{ width: `${pnPct}%`, backgroundColor: "#a69f95" }}/>
                           </div>
                           <div className="flex items-center justify-between mt-1.5">
                             <div className="flex gap-3 text-[10px] text-slate-600">
-                              <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-yellow-500 inline-block"/>Claimed {fmt(f.claimedYTD)}</span>
-                              {f.pendingClaims > 0 && <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-stone-500 inline-block"/>At OEM {fmt(f.pendingClaims)}</span>}
+                              <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: "#eab308" }}/>Claimed {fmt(f.claimedYTD)}</span>
+                              {f.pendingClaims > 0 && <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: "#a69f95" }}/>At OEM {fmt(f.pendingClaims)}</span>}
                             </div>
                             <span className="text-[10px] text-slate-600">{utilPct}% utilized · {avPct}% open</span>
                           </div>
@@ -276,22 +288,22 @@ export default function NewReconModal({ onClose, onSave }: Props) {
                     </div>
                     <div className="text-right">
                       <div className="text-sm font-bold text-blue-400">{fmt(selectedFund.availableBalance)}</div>
-                      <div className="text-[10px] text-slate-500">available now</div>
+                      <div className="text-[10px] text-slate-500">Available</div>
                     </div>
                   </div>
                   {/* Live impact bar: claimed + at OEM + this claim + remaining */}
                   <div className="h-2 bg-white/5 rounded-full overflow-hidden flex">
-                    <div className="bg-yellow-500 h-full transition-all" style={{ width: `${s2ClaimedPct}%` }}/>
-                    <div className="bg-stone-500 h-full transition-all" style={{ width: `${s2PendingPct}%` }}/>
+                    <div className="h-full transition-all" style={{ width: `${s2ClaimedPct}%`, backgroundColor: "#eab308" }}/>
+                    <div className="h-full transition-all" style={{ width: `${s2PendingPct}%`, backgroundColor: "#a69f95" }}/>
                     {s2NewPct > 0 && (
-                      <div className="bg-green-500 h-full transition-all" style={{ width: `${s2NewPct}%` }}/>
+                      <div className="bg-emerald-500 h-full transition-all" style={{ width: `${s2NewPct}%` }}/>
                     )}
                   </div>
                   <div className="flex items-center justify-between mt-1.5 text-[10px]">
                     <div className="flex gap-3 text-slate-600">
-                      <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-yellow-500 inline-block"/>Claimed</span>
-                      <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-stone-500 inline-block"/>At OEM</span>
-                      {s2NewPct > 0 && <span className="flex items-center gap-1 text-green-500"><span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block"/>This claim</span>}
+                      <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: "#eab308" }}/>Claimed</span>
+                      <span className="flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: "#a69f95" }}/>At OEM</span>
+                      {s2NewPct > 0 && <span className="flex items-center gap-1 text-emerald-400"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"/>This claim</span>}
                     </div>
                     {balanceAfter !== null && (
                       <span className="text-emerald-400 font-semibold">{fmt(balanceAfter)} remaining after</span>
@@ -389,7 +401,7 @@ export default function NewReconModal({ onClose, onSave }: Props) {
             <button
               disabled={!form.fundRecordId}
               onClick={() => setStep(2)}
-              className="px-5 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-tl-lg rounded-br-lg rounded-tr-none rounded-bl-none transition-colors"
+              className="px-5 py-2 bg-green-800 hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-tl-lg rounded-br-lg rounded-tr-none rounded-bl-none transition-colors"
             >
               Continue →
             </button>

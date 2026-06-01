@@ -1,12 +1,12 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { FUND_RECORDS, ROOFTOPS, OEM_PROGRAMS, expiryUrgency, URGENCY_META, fmt, MOCK_TODAY, NAV_ROOFTOPS, type FundRecord } from "@/app/data/mockData";
 import { useClaims } from "@/app/data/sessionStore";
 import StatusBadge from "@/app/components/StatusBadge";
 import BrandMark from "@/app/components/BrandMark";
 import EditAgreementModal from "@/app/components/EditAgreementModal";
 import DeadlineCalendar from "@/app/components/DeadlineCalendar";
-import { EXCEPTION_META, getClaimReadiness, getExceptionItems } from "@/app/data/claimInsights";
+import { KIND_META, getExceptionItems } from "@/app/data/claimInsights";
 
 const TODAY = MOCK_TODAY;
 
@@ -57,7 +57,7 @@ export default function DirectorPage() {
     }, 1600);
   }
 
-  function handleExport() {
+  const handleExport = useCallback(() => {
     const exportRooftops = selectedRooftopId
       ? ROOFTOPS.filter((r) => r.id === selectedRooftopId)
       : ROOFTOPS;
@@ -78,7 +78,7 @@ export default function DirectorPage() {
     a.download = `fund-overview-${TODAY.toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-  }
+  }, [selectedRooftopId, fundRecords]);
 
   useEffect(() => {
     function openCalendar() {
@@ -91,7 +91,7 @@ export default function DirectorPage() {
       window.removeEventListener("sunroad:open-calendar", openCalendar);
       window.removeEventListener("sunroad:export-csv", handleExport);
     };
-  });
+  }, [handleExport]);
 
   function toggleFund(id: string) {
     setExpandedFunds((prev) => {
@@ -120,14 +120,9 @@ export default function DirectorPage() {
   const pastDeadline = visibleFunds.filter((f) => f.daysUntilExpiry <= 0 && f.availableBalance > 0);
   const opportunityItems = getExceptionItems(claims, fundRecords)
     .filter((item) => visibleRooftops.some((r) => r.name === item.rooftopName));
-  const highValueOpportunities = opportunityItems.filter((item) => item.severity === "critical").length;
-  const nextStepOpportunities  = opportunityItems.filter((item) => item.severity === "warning").length;
-  const readinessScores = claims
-    .filter((c) => visibleRooftops.some((r) => r.id === c.rooftopId) && c.status !== "paid")
-    .map((c) => getClaimReadiness(c, fundRecords).score);
-  const avgReadiness = readinessScores.length
-    ? Math.round(readinessScores.reduce((sum, score) => sum + score, 0) / readinessScores.length)
-    : 100;
+  const urgentOpportunities  = opportunityItems.filter((item) => item.severity === "critical").length;
+  const followUpOpportunities = opportunityItems.filter((item) => item.severity === "warning").length;
+  const dueSoonCount = visibleFunds.filter((f) => f.daysUntilExpiry > 0 && f.daysUntilExpiry <= 30 && f.availableBalance > 0).length;
 
   const rooftopRollup = visibleRooftops.map((rt) => {
     const funds  = fundRecords.filter((f) => f.rooftopId === rt.id);
@@ -301,9 +296,9 @@ export default function DirectorPage() {
                   <div className="flex items-center gap-3 md:gap-5 shrink-0">
                     <div className="grid grid-cols-3 gap-2 min-w-[260px] md:min-w-[360px]">
                       {[
-                        { label: "High Value", value: highValueOpportunities, className: "text-emerald-400" },
-                        { label: "Next Steps", value: nextStepOpportunities, className: "text-blue-400" },
-                        { label: "Readiness", value: `${avgReadiness}%`, className: "text-emerald-400" },
+                        { label: "Urgent",     value: urgentOpportunities,  className: "text-amber-400" },
+                        { label: "Follow up",  value: followUpOpportunities, className: "text-blue-400" },
+                        { label: "Due ≤30d",   value: dueSoonCount,         className: dueSoonCount > 0 ? "text-amber-400" : "text-slate-400" },
                       ].map(({ label, value, className }) => (
                         <div key={label} className="bg-white/[0.035] border border-white/8 rounded-tl-lg rounded-br-lg rounded-tr-none rounded-bl-none px-3 py-2">
                           <div className={`text-lg font-bold leading-tight ${className}`}>{value}</div>
@@ -331,32 +326,27 @@ export default function DirectorPage() {
                 ) : (
                   <div className="divide-y divide-white/5">
                     {opportunityItems.slice(0, 6).map((item) => {
-                      const meta = EXCEPTION_META[item.severity];
-                      const readiness = item.claim ? getClaimReadiness(item.claim, fundRecords) : null;
+                      const kindMeta = KIND_META[item.kind];
                       return (
-                        <div key={item.id} className="px-4 py-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                          <div className="min-w-0">
+                        <div key={item.id} className="px-4 py-3 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                          <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded border text-[10px] font-semibold ${meta.className}`}>
-                                <span className={`w-1.5 h-1.5 rounded-full ${meta.dot}`} />
-                                {meta.label}
+                              <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded border text-[10px] font-semibold ${kindMeta.className}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${kindMeta.dot}`} />
+                                {kindMeta.label}
                               </span>
-                              <span className="text-sm font-bold text-slate-100">{item.title}</span>
-                              {readiness && (
-                                <span className="text-[10px] text-slate-500 bg-white/5 border border-white/8 rounded px-1.5 py-0.5">
-                                  Readiness {readiness.score}%
-                                </span>
-                              )}
+                              <span className="text-sm font-semibold text-slate-100">{item.title}</span>
                             </div>
-                            <div className="text-xs text-slate-500 mt-1 truncate">
-                              {item.rooftopName} · {item.detail}
-                            </div>
+                            <div className="text-xs text-slate-500 mt-1">{item.detail}</div>
                           </div>
-                          <div className="flex items-center justify-between gap-3 lg:w-[360px] lg:justify-end">
-                            <div className="text-xs text-slate-400 lg:text-right">{item.action}</div>
+                          <div className="flex items-center gap-4 lg:shrink-0 lg:justify-end lg:w-52">
                             {item.amount !== undefined && (
-                              <div className="text-sm font-mono font-bold text-white shrink-0">{fmt(item.amount)}</div>
+                              <div className="text-right">
+                                <div className="text-sm font-mono font-bold text-white">{fmt(item.amount)}</div>
+                                <div className="text-[10px] text-slate-600 uppercase tracking-wider">{item.amountLabel ?? kindMeta.amountLabel}</div>
+                              </div>
                             )}
+                            <div className="text-xs font-medium text-slate-400 border border-white/10 bg-white/[0.03] rounded px-2.5 py-1.5 whitespace-nowrap">{item.action}</div>
                           </div>
                         </div>
                       );
@@ -425,14 +415,14 @@ export default function DirectorPage() {
                           </div>
                           <div className="mt-2 grid grid-cols-3 gap-2 md:hidden">
                             {[
-                              { label: "Claimed", color: "bg-blue-500", val: fund.claimedYTD },
-                              { label: "At OEM", color: "bg-white/25", val: fund.pendingClaims },
-                              { label: "Accrued", color: "bg-white/15", val: fund.accruedBalance },
-                            ].map(({ label, color, val }) => (
+                              { label: "Accrued", dotStyle: { backgroundColor: "#22c55e" }, val: fund.accruedBalance },
+                              { label: "Claimed", dotStyle: { backgroundColor: "#eab308" }, val: fund.claimedYTD },
+                              { label: "At OEM",  dotStyle: { backgroundColor: "#a69f95" }, val: fund.pendingClaims },
+                            ].map(({ label, dotStyle, val }) => (
                               <div key={label} className="min-w-0">
                                 <div className="text-[11px] font-bold text-slate-300 leading-tight">{fmt(val)}</div>
                                 <div className="flex items-center gap-1 text-[9px] text-slate-500 leading-tight">
-                                  <span className={`w-1.5 h-1.5 rounded-full ${color} inline-block shrink-0`} />
+                                  <span className="w-1.5 h-1.5 rounded-full inline-block shrink-0" style={dotStyle} />
                                   <span className="truncate">{label}</span>
                                 </div>
                               </div>
@@ -443,14 +433,14 @@ export default function DirectorPage() {
                         {/* 3 stats — desktop only in collapsed row */}
                         <div className="hidden md:flex items-center gap-10 shrink-0">
                           {[
-                            { val: fund.claimedYTD,     dot: "bg-blue-500",  label: "Claimed" },
-                            { val: fund.pendingClaims,  dot: "bg-white/25",  label: "At OEM"  },
-                            { val: fund.accruedBalance, dot: "bg-white/15",  label: "Accrued" },
-                          ].map(({ val, dot, label }) => (
+                            { val: fund.accruedBalance, dotStyle: { backgroundColor: "#22c55e" }, label: "Accrued" },
+                            { val: fund.claimedYTD,     dotStyle: { backgroundColor: "#eab308" }, label: "Claimed" },
+                            { val: fund.pendingClaims,  dotStyle: { backgroundColor: "#a69f95" }, label: "At OEM"  },
+                          ].map(({ val, dotStyle, label }) => (
                             <div key={label} className="w-[80px] flex flex-col">
                               <div className="text-xs font-bold text-slate-300 mb-0.5 text-right tabular-nums">{fmt(val)}</div>
                               <div className="flex items-center justify-end gap-1 text-[10px] text-slate-500 whitespace-nowrap">
-                                <span className={`w-1.5 h-1.5 rounded-full ${dot} inline-block shrink-0`}/>{label}
+                                <span className="w-1.5 h-1.5 rounded-full inline-block shrink-0" style={dotStyle}/>{label}
                               </div>
                             </div>
                           ))}
@@ -460,7 +450,7 @@ export default function DirectorPage() {
                         <div className="flex items-center gap-2 shrink-0">
                           <div className="w-[88px] text-right">
                             <div className="text-base md:text-lg font-bold text-white leading-tight tabular-nums">{fmt(fund.availableBalance)}</div>
-                            <div className="text-[10px] text-slate-500">available</div>
+                            <div className="text-[10px] text-slate-500">Available</div>
                           </div>
                           <svg
                             className={`w-4 h-4 text-slate-500 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
@@ -517,13 +507,13 @@ export default function DirectorPage() {
                           {/* Stats — mobile only */}
                           <div className="flex gap-5 md:hidden">
                             {[
-                              { label: "Claimed",  color: "bg-blue-500",  val: fund.claimedYTD },
-                              { label: "At OEM",   color: "bg-white/25",  val: fund.pendingClaims },
-                              { label: "Accrued",  color: "bg-white/15",  val: fund.accruedBalance },
-                            ].map(({ label, color, val }) => (
+                              { label: "Accrued",  dotStyle: { backgroundColor: "#22c55e" }, val: fund.accruedBalance },
+                              { label: "Claimed",  dotStyle: { backgroundColor: "#eab308" }, val: fund.claimedYTD },
+                              { label: "At OEM",   dotStyle: { backgroundColor: "#a69f95" }, val: fund.pendingClaims },
+                            ].map(({ label, dotStyle, val }) => (
                               <div key={label}>
                                 <div className="flex items-center gap-1 text-[10px] text-slate-500 mb-0.5">
-                                  <span className={`w-1.5 h-1.5 rounded-full ${color} inline-block`}/>{label}
+                                  <span className="w-1.5 h-1.5 rounded-full inline-block" style={dotStyle}/>{label}
                                 </div>
                                 <div className="text-xs font-bold text-slate-300">{fmt(val)}</div>
                               </div>
@@ -537,13 +527,13 @@ export default function DirectorPage() {
                               <span className={`text-xs font-semibold ${utilColor}`}>{utilizedPct}% &nbsp;·&nbsp; {utilLabel}</span>
                             </div>
                             <div className="h-2 w-full bg-white/5 rounded-full overflow-hidden flex">
-                              <div className="bg-blue-500 h-full" style={{ width: `${claimedPct}%` }}/>
-                              <div className="bg-white/20 h-full" style={{ width: `${pendingPct}%` }}/>
+                              <div className="h-full" style={{ width: `${claimedPct}%`, backgroundColor: "#eab308" }}/>
+                              <div className="h-full" style={{ width: `${pendingPct}%`, backgroundColor: "#a69f95" }}/>
                             </div>
                             <div className="flex gap-4 mt-1.5 text-[10px] text-slate-600">
-                              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500 inline-block"/>Claimed {claimedPct}%</span>
-                              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-white/25 inline-block"/>At OEM {pendingPct}%</span>
-                              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-white/15 inline-block"/>Available {availPct}%</span>
+                              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: "#eab308" }}/>Claimed {claimedPct}%</span>
+                              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: "#a69f95" }}/>At OEM {pendingPct}%</span>
+                              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full inline-block" style={{ backgroundColor: "#5b9bd5" }}/>Available {availPct}%</span>
                             </div>
                           </div>
 

@@ -3,6 +3,7 @@ import {
   OEM_PROGRAMS,
   ROOFTOPS,
   MOCK_TODAY,
+  fmt,
   type Claim,
   type FundRecord,
 } from "@/app/data/mockData";
@@ -41,6 +42,7 @@ export interface ExceptionItem {
   fund?: FundRecord;
   days?: number;
   amount?: number;
+  amountLabel?: string;
 }
 
 function daysBetween(from: string, to = MOCK_TODAY) {
@@ -77,7 +79,7 @@ export function getClaimReadiness(claim: Claim, funds: FundRecord[] = FUND_RECOR
     };
   }
 
-  if (claim.status === "expired" || left < 0 || (fund && fund.daysUntilExpiry <= 0 && claim.status === "unsubmitted")) {
+  if (claim.status === "expired" || left < 0 || (fund && fund.daysUntilExpiry <= 0 && left <= 0 && claim.status === "unsubmitted")) {
     blockers.push("Prior-period deadline is closed");
     actions.push("Capture recovery note and no-carryover impact");
   }
@@ -199,13 +201,14 @@ export function getExceptionItems(claims: Claim[], funds: FundRecord[] = FUND_RE
     const left = daysUntil(claim.submissionDeadline);
 
     if (claim.status === "expired" || left < 0) {
+      const { fund: f, rooftop: rt } = findContext(claim, funds);
       items.push(makeClaimException(
         claim,
         "past-deadline",
         "critical",
-        "Prior-period recovery insight",
-        `${claim.activity} belongs to a closed ${claim.submissionDeadline} period.`,
-        "Capture no-carryover impact and keep the learning visible.",
+        `${claim.activity} — deadline closed`,
+        `${rt?.name ?? "Unknown"} · ${f?.periodLabel ?? ""} · was due ${claim.submissionDeadline}`,
+        "Note no-carryover impact",
         funds,
         left,
       ));
@@ -213,39 +216,42 @@ export function getExceptionItems(claims: Claim[], funds: FundRecord[] = FUND_RE
     }
 
     if (claim.status === "unsubmitted" && left <= 30) {
+      const { fund: f, rooftop: rt } = findContext(claim, funds);
       items.push(makeClaimException(
         claim,
         "deadline-risk",
         "critical",
-        "Near-term capture opportunity",
-        `${claim.activity} has ${left} days left to capture co-op funds.`,
-        "Submit or assign an owner today.",
+        `${claim.activity} — ${left}d to submit`,
+        `${rt?.name ?? "Unknown"} · ${f?.periodLabel ?? ""} · due ${claim.submissionDeadline}`,
+        "Submit to portal",
         funds,
         left,
       ));
     }
 
     if (fund && claim.status === "unsubmitted" && claim.eligibleAmount > fund.availableBalance) {
+      const { rooftop: rt } = findContext(claim, funds);
       items.push(makeClaimException(
         claim,
         "over-balance",
         "critical",
-        "Funding fit opportunity",
-        `${claim.activity} is above the remaining fund balance.`,
-        "Split, resize, or reallocate the claim before submission.",
+        `${claim.activity} — exceeds fund balance`,
+        `${rt?.name ?? "Unknown"} · ${fund.periodLabel} · ${fmt(claim.eligibleAmount)} vs ${fmt(fund.availableBalance)} available`,
+        "Resize or split before submitting",
         funds,
         left,
       ));
     }
 
     if (claim.status === "pending" && !claim.oemReference) {
+      const { rooftop: rt } = findContext(claim, funds);
       items.push(makeClaimException(
         claim,
         "missing-reference",
         "warning",
-        "Reference capture opportunity",
-        `${claim.activity} is at OEM without a portal reference.`,
-        "Add the portal reference to make reconciliation smoother.",
+        `${claim.activity} — no portal reference`,
+        `${rt?.name ?? "Unknown"} · submitted ${claim.submittedDate ?? "—"}`,
+        "Add portal reference number",
         funds,
       ));
     }
@@ -253,13 +259,14 @@ export function getExceptionItems(claims: Claim[], funds: FundRecord[] = FUND_RE
     if (claim.status === "pending" && claim.submittedDate) {
       const atOemDays = daysBetween(claim.submittedDate);
       if (atOemDays >= 14) {
+        const { rooftop: rt } = findContext(claim, funds);
         items.push(makeClaimException(
           claim,
           "stale-oem",
           "warning",
-          "OEM follow-up opportunity",
-          `${claim.activity} has been at OEM for ${atOemDays} days.`,
-          "Refresh portal export or follow up to keep momentum.",
+          `${claim.activity} — ${atOemDays}d at OEM`,
+          `${rt?.name ?? "Unknown"} · submitted ${claim.submittedDate}`,
+          "Refresh portal export",
           funds,
           atOemDays,
         ));
@@ -269,13 +276,14 @@ export function getExceptionItems(claims: Claim[], funds: FundRecord[] = FUND_RE
     if (claim.status === "approved" && !claim.paidDate && claim.approvedDate) {
       const approvedDays = daysBetween(claim.approvedDate);
       if (approvedDays >= 14) {
+        const { rooftop: rt } = findContext(claim, funds);
         items.push(makeClaimException(
           claim,
           "approved-unpaid",
           "warning",
-          "Payment follow-up opportunity",
-          `${claim.activity} was approved ${approvedDays} days ago.`,
-          "Confirm payment timing with accounting or the OEM.",
+          `${claim.activity} — approved ${approvedDays}d ago, not paid`,
+          `${rt?.name ?? "Unknown"} · approved ${claim.approvedDate}`,
+          "Confirm payment with accounting",
           funds,
           approvedDays,
         ));
@@ -291,24 +299,37 @@ export function getExceptionItems(claims: Claim[], funds: FundRecord[] = FUND_RE
         id: `${fund.id}-closed-balance`,
         kind: "closed-balance",
         severity: "info",
-        title: "Prior-period learning opportunity",
-        detail: `${fund.periodLabel} closed with remaining funds.`,
-        action: "Include in opportunity-capture reporting.",
+        title: `${fund.periodLabel} — ${fmt(fund.availableBalance)} unclaimed`,
+        detail: `${rooftop?.name ?? "Unknown"} · closed ${fund.expiryDate} · no carryover`,
+        action: "Document in period report",
         rooftopName: rooftop?.name ?? "Unknown rooftop",
         brand: rooftop?.brand ?? "Unknown",
         fund,
         days: fund.daysUntilExpiry,
         amount: fund.availableBalance,
+        amountLabel: "unclaimed",
       });
     });
 
   const severityRank: Record<ExceptionSeverity, number> = { critical: 0, warning: 1, info: 2 };
+  // Negative days = past deadline; treat as lowest priority within a severity bucket.
+  const sortDays = (d: number | undefined) => (d === undefined || d < 0 ? Infinity : d);
   return items.sort((a, b) =>
     severityRank[a.severity] - severityRank[b.severity] ||
-    (a.days ?? 999) - (b.days ?? 999) ||
+    sortDays(a.days) - sortDays(b.days) ||
     (b.amount ?? 0) - (a.amount ?? 0)
   );
 }
+
+export const KIND_META: Record<ExceptionKind, { label: string; amountLabel: string; className: string; dot: string }> = {
+  "deadline-risk":     { label: "Due soon",         amountLabel: "eligible",  className: "text-slate-100 bg-white/10 border-white/20",      dot: "bg-white/60" },
+  "past-deadline":     { label: "Closed",           amountLabel: "forfeited", className: "text-slate-600 bg-white/[0.02] border-white/5",    dot: "bg-white/20" },
+  "over-balance":      { label: "Over balance",     amountLabel: "eligible",  className: "text-slate-100 bg-white/10 border-white/20",      dot: "bg-white/60" },
+  "missing-reference": { label: "No reference",     amountLabel: "at OEM",    className: "text-slate-400 bg-white/5 border-white/10",       dot: "bg-white/35" },
+  "stale-oem":         { label: "At OEM",           amountLabel: "at OEM",    className: "text-slate-400 bg-white/5 border-white/10",       dot: "bg-white/35" },
+  "approved-unpaid":   { label: "Awaiting payment", amountLabel: "approved",  className: "text-slate-300 bg-white/[0.03] border-white/8",   dot: "bg-white/45" },
+  "closed-balance":    { label: "Period closed",    amountLabel: "unclaimed", className: "text-slate-600 bg-white/[0.02] border-white/5",    dot: "bg-white/20" },
+};
 
 export const READINESS_META: Record<ReadinessState, { label: string; className: string; bar: string }> = {
   ready: {
@@ -340,17 +361,17 @@ export const READINESS_META: Record<ReadinessState, { label: string; className: 
 
 export const EXCEPTION_META: Record<ExceptionSeverity, { label: string; className: string; dot: string }> = {
   critical: {
-    label: "High Value",
-    className: "text-emerald-400 bg-emerald-500/10 border-emerald-500/25",
-    dot: "bg-emerald-500",
+    label: "Urgent",
+    className: "text-amber-400 bg-amber-500/10 border-amber-500/25",
+    dot: "bg-amber-500",
   },
   warning: {
-    label: "Next Step",
+    label: "Follow up",
     className: "text-blue-400 bg-blue-500/10 border-blue-500/25",
     dot: "bg-blue-500",
   },
   info: {
-    label: "Info",
+    label: "Closed period",
     className: "text-slate-400 bg-white/5 border-white/10",
     dot: "bg-slate-500",
   },

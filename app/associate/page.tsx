@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   FUND_RECORDS, ROOFTOPS, OEM_PROGRAMS,
   expiryUrgency, URGENCY_META, fmt, MOCK_TODAY, NAV_ROOFTOPS,
@@ -39,6 +39,7 @@ export default function AssociatePage() {
   const [showBulkSubmit,  setShowBulkSubmit]   = useState(false);
   const [bulkClaims,      setBulkClaims]       = useState<Claim[]>([]);
   const [showCalendar,    setShowCalendar]     = useState(false);
+  const [reconPreFill,    setReconPreFill]     = useState<{ fundRecordId?: string; rooftopId?: string } | null>(null);
   const [selectedClaims,  setSelectedClaims]   = useState<Set<string>>(new Set());
   const [editingRefId,    setEditingRefId]     = useState<string | null>(null);
   const [editingRefValue, setEditingRefValue]  = useState("");
@@ -70,7 +71,7 @@ export default function AssociatePage() {
     }, 1600);
   }
 
-  function handleSaveClaimEdit(claimId: string, updates: { oemReference?: string; notes?: string }) {
+  function handleSaveClaimEdit(claimId: string, updates: { oemReference?: string; notes?: string; docChecks?: Record<string, boolean> }) {
     setClaims((prev) => prev.map((c) => (c.id === claimId ? { ...c, ...updates } : c)));
     showToast("Claim updated");
   }
@@ -87,7 +88,7 @@ export default function AssociatePage() {
     showToast(`${claimIds.length} claims marked as submitted`);
   }
 
-  function handleExport() {
+  const handleExport = useCallback(() => {
     const kiaRt = ROOFTOPS.filter((r) => r.pilot || r.brand === "Kia");
     const exportClaims = claims.filter((c) => kiaRt.some((r) => r.id === c.rooftopId));
     const rows = [
@@ -106,7 +107,7 @@ export default function AssociatePage() {
     a.click();
     URL.revokeObjectURL(url);
     showToast("Claims exported as CSV");
-  }
+  }, [claims]);
 
   useEffect(() => {
     function openCalendar() {
@@ -119,7 +120,7 @@ export default function AssociatePage() {
       window.removeEventListener("sunroad:open-calendar", openCalendar);
       window.removeEventListener("sunroad:export-csv", handleExport);
     };
-  });
+  }, [handleExport]);
 
   const kiaProgram = OEM_PROGRAMS.find((p) => p.pilot)!;
   const kiaFunds   = FUND_RECORDS.filter((f) => f.programId === kiaProgram.id);
@@ -147,16 +148,18 @@ export default function AssociatePage() {
 
   const selectedClaimObjs = filtered.filter((c) => selectedClaims.has(c.id));
   const actionableClaims = kiaClaims.filter((c) => c.status !== "paid" && c.status !== "expired");
+
+  const readinessMap = new Map(kiaClaims.map((c) => [c.id, getClaimReadiness(c, FUND_RECORDS)]));
   const readinessCounts = actionableClaims.reduce(
     (acc, claim) => {
-      const readiness = getClaimReadiness(claim, FUND_RECORDS);
-      acc[readiness.state] = (acc[readiness.state] ?? 0) + 1;
+      const r = readinessMap.get(claim.id)!;
+      acc[r.state] = (acc[r.state] ?? 0) + 1;
       return acc;
     },
     {} as Partial<Record<ReturnType<typeof getClaimReadiness>["state"], number>>
   );
   const avgReadiness = actionableClaims.length
-    ? Math.round(actionableClaims.reduce((sum, claim) => sum + getClaimReadiness(claim, FUND_RECORDS).score, 0) / actionableClaims.length)
+    ? Math.round(actionableClaims.reduce((sum, claim) => sum + readinessMap.get(claim.id)!.score, 0) / actionableClaims.length)
     : 100;
 
   return (
@@ -231,7 +234,7 @@ export default function AssociatePage() {
                       <BrandMark brand={rt.brand} size={38} />
                     </div>
                     <div className="flex-1 min-w-0 px-4 md:px-5 py-4">
-                      <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-end justify-between gap-4">
                         <div className="min-w-0">
                           <div className="flex items-center gap-1.5 mb-1.5 lg:hidden">
                             <BrandMark brand={rt.brand} size={18} />
@@ -243,41 +246,23 @@ export default function AssociatePage() {
                             Submit by {fund.expiryDate} &nbsp;·&nbsp; {fund.daysUntilExpiry}d remaining
                           </div>
                           <div className="mt-3 h-1.5 w-full md:w-64 bg-white/5 rounded-full overflow-hidden flex">
-                            <div className="bg-blue-500 h-full" style={{ width: `${claimedPct}%` }} />
-                            <div className="bg-white/20 h-full" style={{ width: `${pendingPct}%` }} />
+                            <div className="h-full" style={{ width: `${claimedPct}%`, backgroundColor: "#eab308" }} />
+                            <div className="h-full" style={{ width: `${pendingPct}%`, backgroundColor: "#a69f95" }} />
                           </div>
                         </div>
                         <div className="text-right shrink-0">
                           <div className="text-xl md:text-2xl font-bold text-white">{fmt(fund.availableBalance)}</div>
-                          <div className="text-xs text-slate-500 mt-0.5">available</div>
+                          <div className="flex items-center justify-end gap-1 text-xs text-slate-500 mt-0.5">
+                            <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: "#5b9bd5" }} />Available
+                          </div>
                         </div>
                       </div>
                     </div>
 
                     {/* Stats + sync */}
-                    <div className="border-t lg:border-t-0 lg:border-l border-white/8 px-4 md:px-5 py-3 lg:py-4 flex flex-col sm:flex-row lg:flex-col gap-3 sm:items-center sm:justify-between lg:items-stretch lg:justify-between lg:w-64">
-                      <div className="grid grid-cols-3 gap-3 sm:gap-5 lg:flex lg:gap-5">
-                        <div>
-                          <div className="text-sm md:text-base font-bold text-slate-200 mb-0.5 lg:mb-1">{fmt(fund.claimedYTD)}</div>
-                          <div className="flex items-center gap-1 lg:gap-1.5 text-xs text-slate-500">
-                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 inline-block" />Claimed
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-sm md:text-base font-bold text-slate-200 mb-0.5 lg:mb-1">{fmt(fund.pendingClaims)}</div>
-                          <div className="flex items-center gap-1 lg:gap-1.5 text-xs text-slate-500">
-                            <span className="w-1.5 h-1.5 rounded-full bg-white/25 inline-block" />At OEM
-                          </div>
-                        </div>
-                        <div>
-                          <div className="text-sm md:text-base font-bold text-slate-200 mb-0.5 lg:mb-1">{fmt(fund.accruedBalance)}</div>
-                          <div className="flex items-center gap-1 lg:gap-1.5 text-xs text-slate-500">
-                            <span className="w-1.5 h-1.5 rounded-full bg-white/15 inline-block" />Accrued
-                          </div>
-                        </div>
-                      </div>
-                      {/* Sync row */}
-                      <div className="flex items-center gap-2 text-[10px] text-slate-600 lg:mt-3">
+                    <div className="border-t lg:border-t-0 lg:border-l border-white/8 px-4 md:px-5 py-3 lg:py-4 flex flex-col sm:flex-row lg:flex-col gap-3 sm:items-center sm:justify-between lg:items-stretch lg:justify-end lg:w-64">
+                      {/* Sync row — sits above stats at lg, pushing stats to bottom */}
+                      <div className="lg:mb-auto flex items-center gap-2 text-[10px] text-slate-600">
                         <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <rect x="3" y="4" width="18" height="18" rx="2" strokeWidth="2"/>
                           <path d="M16 2v4M8 2v4M3 10h18" strokeWidth="2"/>
@@ -296,6 +281,26 @@ export default function AssociatePage() {
                           </svg>
                           {isSyncing ? "Syncing…" : "Sync"}
                         </button>
+                      </div>
+                      <div className="grid grid-cols-3 gap-3 sm:gap-5">
+                        <div className="min-w-0">
+                          <div className="text-sm md:text-base font-bold text-slate-200 mb-0.5 lg:mb-1">{fmt(fund.claimedYTD)}</div>
+                          <div className="flex items-center gap-1 lg:gap-1.5 text-xs text-slate-500">
+                            <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: "#eab308" }} />Claimed
+                          </div>
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-sm md:text-base font-bold text-slate-200 mb-0.5 lg:mb-1">{fmt(fund.pendingClaims)}</div>
+                          <div className="flex items-center gap-1 lg:gap-1.5 text-xs text-slate-500">
+                            <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: "#a69f95" }} />At OEM
+                          </div>
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-sm md:text-base font-bold text-slate-200 mb-0.5 lg:mb-1">{fmt(fund.accruedBalance)}</div>
+                          <div className="flex items-center gap-1 lg:gap-1.5 text-xs text-slate-500">
+                            <span className="w-1.5 h-1.5 rounded-full bg-white/25 inline-block" />Accrued
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -322,8 +327,8 @@ export default function AssociatePage() {
                           </div>
                           <div className="text-xs text-slate-600 mt-0.5">{fund.periodLabel} &nbsp;·&nbsp; ended {fund.expiryDate} · No carryover</div>
                           <div className="mt-3 h-1.5 w-full md:w-64 bg-white/5 rounded-full overflow-hidden flex">
-                            <div className="bg-emerald-500/50 h-full" style={{ width: `${claimedPct}%` }} />
-                            <div className="bg-amber-400/50 h-full" style={{ width: `${pendingPct}%` }} />
+                            <div className="bg-blue-500/40 h-full" style={{ width: `${claimedPct}%` }} />
+                            <div className="bg-white/15 h-full" style={{ width: `${pendingPct}%` }} />
                           </div>
                         </div>
                         <div className="text-right shrink-0">
@@ -333,16 +338,16 @@ export default function AssociatePage() {
                       </div>
                     </div>
                     <div className="border-t lg:border-t-0 lg:border-l border-white/5 px-4 md:px-5 py-3 lg:py-4 flex flex-col sm:flex-row lg:flex-col gap-3 sm:items-center sm:justify-between lg:items-stretch lg:justify-between lg:w-64">
-                      <div className="grid grid-cols-3 gap-3 sm:gap-5 lg:flex lg:gap-5">
-                        <div>
+                      <div className="grid grid-cols-3 gap-3 sm:gap-5">
+                        <div className="min-w-0">
                           <div className="text-sm md:text-base font-bold text-slate-500 mb-0.5">{fmt(fund.claimedYTD)}</div>
-                          <div className="flex items-center gap-1 text-xs text-slate-600"><span className="w-1.5 h-1.5 rounded-full bg-blue-500/40 inline-block" />Claimed</div>
+                          <div className="flex items-center gap-1 text-xs text-slate-600"><span className="w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: "#eab308", opacity: 0.4 }} />Claimed</div>
                         </div>
-                        <div>
+                        <div className="min-w-0">
                           <div className="text-sm md:text-base font-bold text-slate-500 mb-0.5">{fmt(fund.pendingClaims)}</div>
-                          <div className="flex items-center gap-1 text-xs text-slate-600"><span className="w-1.5 h-1.5 rounded-full bg-white/20 inline-block" />At OEM</div>
+                          <div className="flex items-center gap-1 text-xs text-slate-600"><span className="w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: "#a69f95", opacity: 0.5 }} />At OEM</div>
                         </div>
-                        <div>
+                        <div className="min-w-0">
                           <div className="text-sm md:text-base font-bold text-slate-500 mb-0.5">{fmt(fund.accruedBalance)}</div>
                           <div className="flex items-center gap-1 text-xs text-slate-600"><span className="w-1.5 h-1.5 rounded-full bg-white/12 inline-block" />Accrued</div>
                         </div>
@@ -362,7 +367,7 @@ export default function AssociatePage() {
               {selectedClaims.size > 0 && (
                 <button
                   onClick={() => { setBulkClaims(selectedClaimObjs); setShowBulkSubmit(true); }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-tl-lg rounded-br-lg rounded-tr-none rounded-bl-none transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-green-800 hover:bg-green-700 text-white text-xs font-semibold rounded-tl-lg rounded-br-lg rounded-tr-none rounded-bl-none transition-colors"
                 >
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
@@ -438,7 +443,7 @@ export default function AssociatePage() {
                   const soonDeadline = daysLeft <= 21 && claim.status === "unsubmitted";
                   const isSelected   = selectedClaims.has(claim.id);
                   const isEditingRef = editingRefId === claim.id;
-                  const readiness    = getClaimReadiness(claim, FUND_RECORDS);
+                  const readiness    = readinessMap.get(claim.id) ?? getClaimReadiness(claim, FUND_RECORDS);
                   const readinessMeta = READINESS_META[readiness.state];
 
                   return (
@@ -577,7 +582,9 @@ export default function AssociatePage() {
       {/* ── Modals ── */}
       {showNewRecon && (
         <NewReconModal
-          onClose={() => setShowNewRecon(false)}
+          onClose={() => { setShowNewRecon(false); setReconPreFill(null); }}
+          initialFundId={reconPreFill?.fundRecordId}
+          initialRooftopId={reconPreFill?.rooftopId}
           onSave={(data) => {
             const nextNum = claims.reduce((max, c) => {
               const n = parseInt(c.id.replace(/\D/g, ""), 10);
@@ -634,7 +641,20 @@ export default function AssociatePage() {
         />
       )}
       {showCalendar && (
-        <DeadlineCalendar fundRecords={FUND_RECORDS} onClose={() => setShowCalendar(false)} />
+        <DeadlineCalendar
+          fundRecords={FUND_RECORDS}
+          onClose={() => setShowCalendar(false)}
+          onNewRecon={(fundRecordId, rooftopId) => {
+            setReconPreFill({ fundRecordId, rooftopId });
+            setShowCalendar(false);
+            setShowNewRecon(true);
+          }}
+          onGoToTab={(tab) => {
+            setActiveTab(tab);
+            setSelectedClaims(new Set());
+            setShowCalendar(false);
+          }}
+        />
       )}
 
       {/* Toast */}
